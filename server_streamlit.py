@@ -8,6 +8,7 @@ from moviepy.editor import VideoFileClip
 from google.cloud import speech
 from google.cloud import storage
 from concurrent.futures import ThreadPoolExecutor
+import base64
 # async def run_analysis():
 #     if button and url:
 #         # Proceed with analysis once URL is available
