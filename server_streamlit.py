@@ -74,7 +74,22 @@ import os
 # Set your Google Cloud credentials here by pointing to the JSON key file
 # google_cloud_credentials = st.secrets["GOOGLE_APPLICATION_CREDENTIALS"]
 # google_cloud_credentials_path = st.secrets["GOOGLE_APPLICATION_CREDENTIALS_PATH"]
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "vaulted-gate-436914-m0-4b792636420a.json"
+def set_google_cloud_credentials():
+    # Retrieve the encoded credentials from Streamlit secrets
+    encoded_credentials = st.secrets["GOOGLE_CLOUD_CREDENTIALS"]
+
+    # Decode the base64-encoded credentials
+    decoded_credentials = base64.b64decode(encoded_credentials).decode('utf-8')
+
+    # Write the decoded credentials to a temporary file
+    with open("gcloud_temp_credentials.json", "w") as cred_file:
+        cred_file.write(decoded_credentials)
+
+    # Set the environment variable to the path of the temporary file
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcloud_temp_credentials.json"
+
+# Call the function to set the credentials
+set_google_cloud_credentials()
 
 # Global variable to store the final transcribed output
 transcripted_output = ""
