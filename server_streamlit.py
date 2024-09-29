@@ -520,7 +520,8 @@ custom_style = """
 
     /* Set background color to white */
     body {
-        background-color: white;
+        background-color: white !important;
+        color: black !important;
     }
 
     /* Style for Navbar */
