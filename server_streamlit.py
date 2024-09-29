@@ -73,8 +73,8 @@ import os
 
 # Set your Google Cloud credentials here by pointing to the JSON key file
 # google_cloud_credentials = st.secrets["GOOGLE_APPLICATION_CREDENTIALS"]
-google_cloud_credentials_path = st.secrets["GOOGLE_APPLICATION_CREDENTIALS_PATH"]
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = google_cloud_credentials_path
+# google_cloud_credentials_path = st.secrets["GOOGLE_APPLICATION_CREDENTIALS_PATH"]
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "vaulted-gate-436914-m0-4b792636420a.json"
 
 # Global variable to store the final transcribed output
 transcripted_output = ""
