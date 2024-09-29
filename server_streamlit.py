@@ -339,7 +339,7 @@ def classify_content(rp_percentage, rc_percentage):
 
 # Function to get analysis from OpenAI GPT-4 model
 def get_analysis_with_api_key(transcript):
-    openai.api_key = st.secrets["OPENAI_API_KEY"]
+    openai.api_key = st.secrets["default"]["OPENAI_API_KEY"]
     
     prompt = f"""
     You are tasked with analyzing transcripts of speeches or text content that might include both Hindi and English sections. The transcript has been processed using two separate speech-to-text APIs: one for Hindi and one for English. Analyze the provided transcript carefully, understanding both languages, and return the analysis based on the following five parameters. The transcript might contain mixed Hindi and English parts, so ensure you identify the language for each section and analyze the radical or religiously inflammatory language accordingly.
