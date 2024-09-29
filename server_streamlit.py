@@ -9,6 +9,7 @@ from google.cloud import speech
 from google.cloud import storage
 from concurrent.futures import ThreadPoolExecutor
 import base64
+import json
 # async def run_analysis():
 #     if button and url:
 #         # Proceed with analysis once URL is available
@@ -75,22 +76,32 @@ import os
 # Set your Google Cloud credentials here by pointing to the JSON key file
 # google_cloud_credentials = st.secrets["GOOGLE_APPLICATION_CREDENTIALS"]
 # google_cloud_credentials_path = st.secrets["GOOGLE_APPLICATION_CREDENTIALS_PATH"]
-def set_google_cloud_credentials():
-    # Retrieve the encoded credentials from Streamlit secrets
-    encoded_credentials = st.secrets["GOOGLE_CLOUD_CREDENTIALS"]
+# def set_google_cloud_credentials():
+#     # Retrieve the encoded credentials from Streamlit secrets
+#     encoded_credentials = st.secrets["GOOGLE_CLOUD_CREDENTIALS"]
 
-    # Decode the base64-encoded credentials
-    decoded_credentials = base64.b64decode(encoded_credentials).decode('utf-8')
+#     # Decode the base64-encoded credentials
+#     decoded_credentials = base64.b64decode(encoded_credentials).decode('utf-8')
 
-    # Write the decoded credentials to a temporary file
-    with open("gcloud_temp_credentials.json", "w") as cred_file:
-        cred_file.write(decoded_credentials)
+#     # Write the decoded credentials to a temporary file
+#     with open("gcloud_temp_credentials.json", "w") as cred_file:
+#         cred_file.write(decoded_credentials)
 
-    # Set the environment variable to the path of the temporary file
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcloud_temp_credentials.json"
+#     # Set the environment variable to the path of the temporary file
+#     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcloud_temp_credentials.json"
 
-# Call the function to set the credentials
-set_google_cloud_credentials()
+# # Call the function to set the credentials
+
+# set_google_cloud_credentials()
+google_cloud_credentials = st.secrets["google_cloud"]
+
+# Write the credentials to a JSON file
+with open("gcloud_temp_credentials.json", "w") as f:
+    json.dump(google_cloud_credentials, f)
+
+# Set the GOOGLE_APPLICATION_CREDENTIALS environment variable
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcloud_temp_credentials.json"
+
 
 # Global variable to store the final transcribed output
 transcripted_output = ""
