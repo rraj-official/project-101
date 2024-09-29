@@ -1,0 +1,11 @@
+streamlit
+pytube
+moviepy 
+yt-dlp
+google-cloud-speech
+google-cloud-storage
+pydub
+ffmpeg-python
+pandas
+openpyxl
+openai

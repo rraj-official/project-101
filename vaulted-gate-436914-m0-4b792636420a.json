@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "vaulted-gate-436914-m0",
+  "private_key_id": "4b792636420a8b4099a32026f8272751c470088c",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQCvEbTMGnrA4soo\nEUjzqenIx4nND0Amwk7cU9KV7Z563+pPTu8tCD/FT/v1xEcUJ4cWxUy2Ih8uf3mC\nSTw28T7ssetc9Fsl/U4+PaNU1cNRW/WTliyqyw7Z+j+es7750+uzUd9RShtKxwdF\norKU+dnLX0sP86UhZODoE1ndPGYAXhIW8Mc2p8p49n4bX+Gk78OrnHdBw/JM/FN3\nH1taDftq+iCsuwXvjeuYMYHV217uO8EVOtrvsAG5uUoF332kOAYDzL/I3of0XZjr\nNJmrrEgbyXnEmgpqgp/dVExqZCYtLEMSd00wEwKg7IhHo21eIizrkS8mqZi7dCyC\nfFkTZHbnAgMBAAECggEAHa764MB8n8fUTwbfP7FHmmt6yfIUBn5bsK/lvNYVUPA2\nYkwX8aK8bVAqgHlPM/OfzBSX9SnD77Zde+G++/HboXZpWdF0wvQ4GAWLdA7qlxjo\ngqWr3Smg0wTDVL1VXDa6eCUhoD7Ycc1dRklXzjqu2vTFXWcKUKcyGydszT44bUc9\n3rRhpu3yKE8Kc9iAbxrnoBCk4I4YPemQcsai8wpv3cHWoAslfdXFQF1eRdCRv+tP\n983JxZOCxMfrGv0IN1HamSk+HJUIEQjjTQ+MxhBv7OFO3IRsexkvwx0WP6IqHe8I\nMO4t3erAknB5OXts+ofgx26JuKEhGAizINgq9RaGAQKBgQDohFo6VrPY3o59i8pi\nISE5kv1HN388C0wArh8QwbQKWjsX/DmWrkNHjBqcKpQkwes+ietRwOrr9eMa66TT\nZiMA23DTXfKqamzw3F5DmRXSqLeOrq5mBP2vgUD9kCRw5MNE08oTyMly8pamT7tG\n6E7OgQTw8Gh1swdMoRXdvL98oQKBgQDAwA9DE5FQvq/RT+48EXXq+OpFNSSf3QQ4\nVFtj/ZhaqvhvrDnL8B9CCi+gHNZCFkP60t9xJT+j24zVR2F6xprIFUmCfgRFWOST\npbezBHXiESzsy2KuLP3G+enO1gAVHoveusBrcKwzCkebVZxvrTCND7N5NXOYxvSi\neKOVY4L+hwKBgQC8k5sZ9XenS9kEuXtKWtQ3fZ8tQzVN3VumsZFAZdk/DC8hJM8Q\nBgVK4bYzMdU0epHwBqtzgqME/EdUbgkf6pY4+8BlrKxCyk3QiuloqZ+pWmyEq+eF\nlkapMIslGuJzLRWxnJMnuJCpSVYlTET3HTHNCZaYUmJmEuy4mWzCiXJEAQKBgQCz\n5c2YzjePhBn2osJ4f9dtslp8s4f2SML6jAksPvEmlnH/UGA1Lm0OJxGiP6fd0Igs\nHwp6wMgv9+bu3Itnmtu1qOCOEW2NB9V21HGqfJxFncAvVfhJFibZwkDtUiCLlZH4\nFJco7+VYUdzZZsL2HE+3KJNaqn+0dOS4ix4qfNEzGwKBgQCahBg9zQ8gxU1qdpPM\n9SqIhREbm375n2wI/XEYx2EPnqHPiQqXXZym3u3d3YluPrEIFCG5wcPfjLzz0sW4\nCVlDNN6pBfrgW1fNPjzy++ml6ibHPSi344DOJSsrzbdr1iP85Y4nDpnZ/d/JRb3Q\nf0wmV9M+W5duz/KHkpqo9FeYuA==\n-----END PRIVATE KEY-----\n",
+  "client_email": "service@vaulted-gate-436914-m0.iam.gserviceaccount.com",
+  "client_id": "113646876744816549516",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/service%40vaulted-gate-436914-m0.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
