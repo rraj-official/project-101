@@ -92,15 +92,24 @@ import os
 
 # # Call the function to set the credentials
 
-# set_google_cloud_credentials()
+import os
+import streamlit as st
+import json
+
+# Access the credentials from Streamlit secrets
 google_cloud_credentials = st.secrets["google_cloud"]
 
-# Write the credentials to a JSON file
-with open("gcloud_temp_credentials.json", "w") as f:
-    json.dump(google_cloud_credentials, f)
+# Convert the Streamlit AttrDict to a regular dictionary
+google_cloud_credentials_dict = dict(google_cloud_credentials)
 
-# Set the GOOGLE_APPLICATION_CREDENTIALS environment variable
+# Write the credentials to a temporary JSON file
+with open("gcloud_temp_credentials.json", "w") as f:
+    json.dump(google_cloud_credentials_dict, f)
+
+# Set the environment variable to point to the temporary JSON file
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcloud_temp_credentials.json"
+
+# Now you can use Google Cloud services
 
 
 # Global variable to store the final transcribed output
