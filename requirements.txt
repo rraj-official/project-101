@@ -8,4 +8,4 @@ pydub
 ffmpeg-python
 pandas
 openpyxl
-openai
+openai==0.28
