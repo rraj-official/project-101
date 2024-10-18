@@ -58,8 +58,19 @@ def fetch_video_details(video_url):
         st.error("Unsupported URL. Please provide a YouTube or X.com URL.")
         return None, None, None
 
-# Set your Google Cloud credentials here by pointing to the JSON key file
-# Assuming you have already set up your Google Cloud credentials as shown in your code
+# Access the credentials from Streamlit secrets
+google_cloud_credentials = st.secrets["google_cloud"]
+
+# Convert the Streamlit AttrDict to a regular dictionary
+google_cloud_credentials_dict = dict(google_cloud_credentials)
+
+# Write the credentials to a temporary JSON file
+with open("gcloud_temp_credentials.json", "w") as f:
+    json.dump(google_cloud_credentials_dict, f)
+
+# Set the environment variable to point to the temporary JSON file
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcloud_temp_credentials.json"
+
 
 # Global variables to store the final transcribed output
 transcripted_output = ""
