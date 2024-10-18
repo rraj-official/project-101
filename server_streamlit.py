@@ -1,18 +1,20 @@
 import streamlit as st
 import os
+from pytube import YouTube
 import yt_dlp
 from pydub import AudioSegment
 from moviepy.editor import VideoFileClip
 from google.cloud import speech
 from google.cloud import storage
 from concurrent.futures import ThreadPoolExecutor
+import base64
 import json
 import openai
 import csv
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import PatternFill
 import pandas as pd
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 # Function to identify YouTube URLs
 def is_youtube_url(url):
@@ -21,8 +23,7 @@ def is_youtube_url(url):
         domain = parsed_url.netloc.lower()
         return (
             domain.endswith("youtube.com") or
-            domain == "youtu.be" or
-            domain.endswith("m.youtube.com")
+            domain == "youtu.be"
         )
     except Exception as e:
         st.error(f"Error parsing URL: {e}")
@@ -41,7 +42,42 @@ def is_xcom_url(url):
         st.error(f"Error parsing URL: {e}")
         return False
 
-# Function to get YouTube video details using yt_dlp
+# Function to get YouTube video details using pytube with enhanced URL handling
+# def fetch_youtube_details(video_url):
+#     try:
+#         parsed_url = urlparse(video_url)
+#         domain = parsed_url.netloc.lower()
+
+#         if domain == "youtu.be":
+#             # Shortened URL format
+#             video_id = parsed_url.path.lstrip('/')
+#         elif "youtube.com" in domain:
+#             if parsed_url.path == "/watch":
+#                 # Standard watch URL
+#                 query_params = parse_qs(parsed_url.query)
+#                 video_id = query_params.get("v", [None])[0]
+#             elif parsed_url.path.startswith("/embed/") or parsed_url.path.startswith("/v/"):
+#                 # Embed or /v/ URL format
+#                 video_id = parsed_url.path.split('/')[2]
+#             else:
+#                 video_id = None
+#         else:
+#             video_id = None
+
+#         if not video_id:
+#             st.error("Could not extract video ID from the provided YouTube URL.")
+#             return None, None, None
+
+#         yt = YouTube(f"https://www.youtube.com/watch?v={video_id}")
+#         video_title = yt.title
+#         thumbnail_url = yt.thumbnail_url
+#         duration = yt.length  # Duration in seconds
+#         return video_title, thumbnail_url, duration
+
+#     except Exception as e:
+#         st.error(f"Error fetching YouTube video details: {e}")
+#         return None, None, None
+    
 def fetch_youtube_details(video_url):
     try:
         ydl_opts = {
@@ -106,6 +142,7 @@ with open("gcloud_temp_credentials.json", "w") as f:
 # Set the environment variable to point to the temporary JSON file
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcloud_temp_credentials.json"
 
+
 # Global variables to store the final transcribed output
 transcripted_output = ""
 transcripted_english_output = ""
@@ -126,142 +163,115 @@ def cleanup_old_files():
         os.remove(audio_path)
         print(f"Removed old audio file: {audio_path}")
 
-# Function to download video using yt_dlp (works for both YouTube and X.com)
-def download_video(video_url, output_video_path='video.mp4'):
-    try:
-        ydl_opts = {
-            'format': 'best',
-            'outtmpl': output_video_path,
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([video_url])
-        print(f"Video downloaded and saved as {output_video_path}")
-        return output_video_path
-    except Exception as e:
-        st.error(f"Error downloading video: {e}")
-        return None
+# Function to download YouTube video using yt_dlp
+def download_youtube_video(video_url, output_video_path='video.mp4'):
+    ydl_opts = {
+        'format': 'best',
+        'outtmpl': output_video_path,
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([video_url])
+    
+    print(f"Video downloaded and saved as {output_video_path}")
+    return output_video_path
 
 # Function to extract audio using moviepy and convert to mono with pydub, compressing the audio
 def extract_audio_from_video(video_path, output_audio_path='audio_compressed.wav', sample_rate=16000, bitrate='32k'):
-    try:
-        video = VideoFileClip(video_path)
-        audio_path_temp = "temp_audio.wav"
-        
-        # Extract audio using moviepy
-        audio = video.audio
-        audio.write_audiofile(audio_path_temp, codec='pcm_s16le', fps=44100)  # Extract audio at 44100 Hz
-        
-        # Convert audio to mono and compress using pydub
-        sound = AudioSegment.from_wav(audio_path_temp)
-        sound = sound.set_channels(1)  # Convert to mono
-        sound = sound.set_frame_rate(sample_rate)  # Set sample rate to 16000 Hz
-        
-        # Export compressed audio with lower bitrate
-        sound.export(output_audio_path, format="wav", bitrate=bitrate)
-        
-        print(f"Compressed audio extracted and saved as {output_audio_path} in mono with {sample_rate} Hz sample rate and {bitrate} bitrate.")
-        
-        # Clean up temporary audio file
-        os.remove(audio_path_temp)
-        
-        return output_audio_path
-    except Exception as e:
-        st.error(f"Error extracting audio from video: {e}")
-        return None
+    video = VideoFileClip(video_path)
+    audio_path_temp = "temp_audio.wav"
+    
+    # Extract audio using moviepy
+    audio = video.audio
+    audio.write_audiofile(audio_path_temp, codec='pcm_s16le', fps=44100)  # Extract audio at 44100 Hz
+    
+    # Convert audio to mono and compress using pydub
+    sound = AudioSegment.from_wav(audio_path_temp)
+    sound = sound.set_channels(1)  # Convert to mono
+    sound = sound.set_frame_rate(sample_rate)  # Set sample rate to 16000 Hz
+    
+    # Export compressed audio with lower bitrate
+    sound.export(output_audio_path, format="wav", bitrate=bitrate)
+    
+    print(f"Compressed audio extracted and saved as {output_audio_path} in mono with {sample_rate} Hz sample rate and {bitrate} bitrate.")
+    
+    # Clean up temporary audio file
+    os.remove(audio_path_temp)
+    
+    return output_audio_path
 
 # Function to split the audio into chunks
 def split_audio_to_chunks(audio_path, chunk_duration_ms=60000):
-    try:
-        sound = AudioSegment.from_wav(audio_path)
-        audio_chunks = []
-        for i in range(0, len(sound), chunk_duration_ms):
-            chunk = sound[i:i + chunk_duration_ms]
-            chunk_path = f"chunk_{i // chunk_duration_ms}.wav"
-            chunk.export(chunk_path, format="wav")
-            audio_chunks.append(chunk_path)
-        
-        print(f"Split audio into {len(audio_chunks)} chunks, each of {chunk_duration_ms} ms.")
-        return audio_chunks
-    except Exception as e:
-        st.error(f"Error splitting audio into chunks: {e}")
-        return []
+    sound = AudioSegment.from_wav(audio_path)
+    audio_chunks = []
+    for i in range(0, len(sound), chunk_duration_ms):
+        chunk = sound[i:i + chunk_duration_ms]
+        chunk_path = f"chunk_{i // chunk_duration_ms}.wav"
+        chunk.export(chunk_path, format="wav")
+        audio_chunks.append(chunk_path)
+    
+    print(f"Split audio into {len(audio_chunks)} chunks, each of {chunk_duration_ms} ms.")
+    return audio_chunks
 
 # Function to upload audio to Google Cloud Storage
 def upload_to_gcs(bucket_name, source_file_name, destination_blob_name):
-    try:
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(bucket_name)
-        blob = bucket.blob(destination_blob_name)
-    
-        blob.upload_from_filename(source_file_name)
-        print(f"File {source_file_name} uploaded to {destination_blob_name}.")
-    except Exception as e:
-        st.error(f"Error uploading {source_file_name} to GCS: {e}")
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
+
+    blob.upload_from_filename(source_file_name)
+    print(f"File {source_file_name} uploaded to {destination_blob_name}.")
 
 # Function to transcribe audio from Google Cloud Storage
 def transcribe_audio_gcs(gcs_uri, language_code='en-US'):
-    try:
-        client = speech.SpeechClient()
+    client = speech.SpeechClient()
+
+    audio = speech.RecognitionAudio(uri=gcs_uri)
+    config = speech.RecognitionConfig(
+        encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+        sample_rate_hertz=16000,  # Set sample rate to match audio
+        language_code=language_code,
+        enable_automatic_punctuation=True,
+    )
+
+    operation = client.long_running_recognize(config=config, audio=audio)
+    response = operation.result(timeout=1500)
+
+    # Print and return the transcription
+    full_transcript = ""
+    for result in response.results:
+        full_transcript += f"{result.alternatives[0].transcript}\n"
     
-        audio = speech.RecognitionAudio(uri=gcs_uri)
-        config = speech.RecognitionConfig(
-            encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-            sample_rate_hertz=16000,  # Set sample rate to match audio
-            language_code=language_code,
-            enable_automatic_punctuation=True,
-        )
-    
-        operation = client.long_running_recognize(config=config, audio=audio)
-        response = operation.result(timeout=1500)
-    
-        # Print and return the transcription
-        full_transcript = ""
-        for result in response.results:
-            full_transcript += f"{result.alternatives[0].transcript}\n"
-        
-        print(f"Transcription complete for language {language_code}.")
-        return full_transcript
-    except Exception as e:
-        st.error(f"Error transcribing audio from {gcs_uri}: {e}")
-        return ""
+    print(f"Transcription complete for language {language_code}.")
+    return full_transcript
 
 # Function to transcribe audio chunks in parallel
 def transcribe_audio_chunks_in_parallel(bucket_name, chunk_paths, language_code='en-US'):
-    try:
-        with ThreadPoolExecutor() as executor:
-            futures = []
-            for chunk_path in chunk_paths:
-                destination_blob_name = os.path.basename(chunk_path)
-                upload_to_gcs(bucket_name, chunk_path, destination_blob_name)
-                gcs_uri = f"gs://{bucket_name}/{destination_blob_name}"
-                futures.append(executor.submit(transcribe_audio_gcs, gcs_uri, language_code))
+    with ThreadPoolExecutor() as executor:
+        futures = []
+        for chunk_path in chunk_paths:
+            destination_blob_name = os.path.basename(chunk_path)
+            upload_to_gcs(bucket_name, chunk_path, destination_blob_name)
+            gcs_uri = f"gs://{bucket_name}/{destination_blob_name}"
+            futures.append(executor.submit(transcribe_audio_gcs, gcs_uri, language_code))
+
+        transcriptions = [future.result() for future in futures]
     
-            transcriptions = [future.result() for future in futures]
-        
-        return " ".join(transcriptions)  # Concatenate all chunk transcriptions
-    except Exception as e:
-        st.error(f"Error transcribing audio chunks: {e}")
-        return ""
+    return " ".join(transcriptions)  # Concatenate all chunk transcriptions
 
 # Updated function to handle the entire workflow
-def transcribe_video(video_url):
+def transcribe_youtube_video(video_url):
     global transcripted_output  # Declare the global variable
 
     # Step 1: Clean up old video and audio files if they exist
     cleanup_old_files()
     
     # Step 2: Download and extract video
-    video_path = download_video(video_url)
-    if not video_path:
-        return
+    video_path = download_youtube_video(video_url)
     
     # Step 3: Extract and split audio into chunks
     audio_path = extract_audio_from_video(video_path, sample_rate=16000, bitrate='32k')
-    if not audio_path:
-        return
     audio_chunks = split_audio_to_chunks(audio_path, chunk_duration_ms=60000)  # Split into 60-second chunks
-    if not audio_chunks:
-        return
     
     # Step 4: Transcribe audio chunks in parallel (for both Hindi and English)
     bucket_name = 'hackathon_police'  # Replace with your Google Cloud Storage bucket name
@@ -276,17 +286,10 @@ def transcribe_video(video_url):
     transcripted_output = f"Hindi Transcription:\n{transcript_hindi}\n\nEnglish Transcription:\n{transcript_english}"
     
     # Clean up local files (delete video, audio, and chunks after transcription is done)
-    try:
-        os.remove(video_path)
-        os.remove(audio_path)
-    except Exception as e:
-        st.warning(f"Error removing files: {e}")
-    
+    # os.remove(video_path)
+    # os.remove(audio_path)
     for chunk_path in audio_chunks:
-        try:
-            os.remove(chunk_path)
-        except Exception as e:
-            st.warning(f"Error removing chunk file {chunk_path}: {e}")
+        os.remove(chunk_path)
 
 # Function to classify radical content based on percentage
 def classify_content(rp_percentage, rc_percentage):
@@ -299,69 +302,68 @@ def classify_content(rp_percentage, rc_percentage):
 
 # Function to get analysis from OpenAI GPT-4 model
 def get_analysis_with_api_key(transcript):
+    openai.api_key = st.secrets["default"]["OPENAI_API_KEY"]
+    
+    prompt = f"""
+    You are tasked with analyzing transcripts of speeches or text content that might include both Hindi and English sections. The transcript has been processed using two separate speech-to-text APIs: one for Hindi and one for English. Analyze the provided transcript carefully, understanding both languages, and return the analysis based on the following five parameters. The transcript might contain mixed Hindi and English parts, so ensure you identify the language for each section and analyze the radical or religiously inflammatory language accordingly.
+
+    ### Parameters to analyze:
+    1. *Lexical Analysis*: Identify radical or religious terminology in both Hindi and English, including exclusionary language (e.g., "us vs. them"), calls to action, or divisive rhetoric.
+    2. *Emotion and Sentiment in Speech*: Analyze the tone and sentiment in both languages. Look for negative emotions like anger or fear, which may incite followers or condemn opposing groups.
+    3. *Speech Patterns and Intensity*: Identify the use of high volume, repetition, or urgency in either language to emphasize points, which are typical in radical speech.
+    4. *Use of Religious Rhetoric*: Look for quotes from religious texts, apocalyptic themes, or divine rewards and punishments to justify actions, considering the context in both Hindi and English.
+    5. *Frequency of Commands and Directives*: Examine the frequency of explicit calls to action, whether physical or ideological, in both languages.
+
+    ### Standard Output Format:
+    Return the analysis in this structured format:
+
+    <u><b>Final Assessment</b></u>: 
+    <br> 
+    <b><span style="color:red">Radical Probability</span></b>: [Insert percentage here];  
+    <b><span style="color:red">Radical Content</span></b>: [Insert percentage here].
+
+    [Separator]
+
+    <b>Lexical Analysis</b>:  
+    [Insert analysis here]
+
+    <b>Emotion and Sentiment in Speech</b>:  
+    [Insert analysis here]
+
+    <b>Speech Patterns and Intensity</b>:  
+    [Insert analysis here]
+
+    <b>Use of Religious Rhetoric</b>:  
+    [Insert analysis here]
+
+    <b>Frequency of Commands and Directives</b>:  
+    [Insert analysis here]
+
+    Transcript: {transcript}
+    """
+    
+    # Making API call to GPT-4 using OpenAI ChatCompletion API
+    response = openai.ChatCompletion.create(
+        model="gpt-4",  # Use GPT-4 model
+        messages=[
+            {"role": "system", "content": "You are an assistant that analyzes transcripts for radical content."},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=1000
+    )
+    
+    result = response['choices'][0]['message']['content']
+
+    # Split the response into two parts based on the "[Separator]" line
     try:
-        openai.api_key = st.secrets["default"]["OPENAI_API_KEY"]
-        
-        prompt = f"""
-        You are tasked with analyzing transcripts of speeches or text content that might include both Hindi and English sections. The transcript has been processed using two separate speech-to-text APIs: one for Hindi and one for English. Analyze the provided transcript carefully, understanding both languages, and return the analysis based on the following five parameters. The transcript might contain mixed Hindi and English parts, so ensure you identify the language for each section and analyze the radical or religiously inflammatory language accordingly.
+        final_assessment, analysis = result.split("[Separator]", 1)
+    except ValueError:
+        st.error("Unexpected response format from OpenAI API.")
+        final_assessment, analysis = "N/A", "N/A"
     
-        ### Parameters to analyze:
-        1. *Lexical Analysis*: Identify radical or religious terminology in both Hindi and English, including exclusionary language (e.g., "us vs. them"), calls to action, or divisive rhetoric.
-        2. *Emotion and Sentiment in Speech*: Analyze the tone and sentiment in both languages. Look for negative emotions like anger or fear, which may incite followers or condemn opposing groups.
-        3. *Speech Patterns and Intensity*: Identify the use of high volume, repetition, or urgency in either language to emphasize points, which are typical in radical speech.
-        4. *Use of Religious Rhetoric*: Look for quotes from religious texts, apocalyptic themes, or divine rewards and punishments to justify actions, considering the context in both Hindi and English.
-        5. *Frequency of Commands and Directives*: Examine the frequency of explicit calls to action, whether physical or ideological, in both languages.
-    
-        ### Standard Output Format:
-        Return the analysis in this structured format:
-    
-        <u><b>Final Assessment</b></u>: 
-        <br> 
-        <b><span style="color:red">Radical Probability</span></b>: [Insert percentage here];  
-        <b><span style="color:red">Radical Content</span></b>: [Insert percentage here].
-    
-        [Separator]
-    
-        <b>Lexical Analysis</b>:  
-        [Insert analysis here]
-    
-        <b>Emotion and Sentiment in Speech</b>:  
-        [Insert analysis here]
-    
-        <b>Speech Patterns and Intensity</b>:  
-        [Insert analysis here]
-    
-        <b>Use of Religious Rhetoric</b>:  
-        [Insert analysis here]
-    
-        <b>Frequency of Commands and Directives</b>:  
-        [Insert analysis here]
-    
-        Transcript: {transcript}
-        """
-        
-        # Making API call to GPT-4 using OpenAI ChatCompletion API
-        response = openai.ChatCompletion.create(
-            model="gpt-4",  # Use GPT-4 model
-            messages=[
-                {"role": "system", "content": "You are an assistant that analyzes transcripts for radical content."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=1000
-        )
-        
-        result = response['choices'][0]['message']['content']
-    
-        # Split the response into two parts based on the "[Separator]" line
-        try:
-            final_assessment, analysis = result.split("[Separator]", 1)
-        except ValueError:
-            st.error("Unexpected response format from OpenAI API.")
-            final_assessment, analysis = "N/A", "N/A"
-        
-        # Log the completion
-        print(f"Radical Content Analysis complete.")
-        return final_assessment, analysis
+    # Global variables to store final assessment and analysis
+    print(f"Radical Content Analysis complete.")
+    return final_assessment, analysis
 
 # Function to extract radical percentage and content percentage
 def extract_percentages(analysis_text):
@@ -414,66 +416,63 @@ def extract_analysis_parts(analysis_text):
 
 # Function to append analysis to Excel
 def append_to_csv(transcript, analysis_text, rp_percentage, rc_percentage):
-    try:
-        # File path for the Excel file
-        file_path = "analysis_results.xlsx"
+    # File path for the Excel file
+    file_path = "analysis_results.xlsx"
 
-        # Check if file exists, otherwise create it with headers
-        if not os.path.exists(file_path):
-            workbook = Workbook()
-            sheet = workbook.active
-            sheet.append([
-                "Transcript",
-                "Lexical Analysis",
-                "Emotion and Sentiment",
-                "Speech Patterns",
-                "Religious Rhetoric",
-                "Commands",
-                "Radical Probability",
-                "Radical Content",
-                "Classification"
-            ])
-            workbook.save(file_path)
-
-        # Open the workbook and active sheet
-        workbook = load_workbook(file_path)
+    # Check if file exists, otherwise create it with headers
+    if not os.path.exists(file_path):
+        workbook = Workbook()
         sheet = workbook.active
-        
-        # Classification based on percentages
-        classification = classify_content(rp_percentage, rc_percentage)
-
-        # Extract analysis parts safely
-        lexical, emotion, speech_patterns, religious_rhetoric, commands = extract_analysis_parts(analysis_text)
-        
-        # Append the new data
-        row_data = [
-            transcript,
-            lexical,
-            emotion,
-            speech_patterns,
-            religious_rhetoric,
-            commands,
-            rp_percentage,
-            rc_percentage,
-            classification
-        ]
-        sheet.append(row_data)
-
-        # Apply coloring based on classification
-        fill_color = {
-            "red": "FF0000",
-            "yellow": "FFFF00",
-            "green": "00FF00"
-        }
-        
-        fill = PatternFill(start_color=fill_color[classification], end_color=fill_color[classification], fill_type="solid")
-        for cell in sheet[sheet.max_row]:
-            cell.fill = fill
-        
-        # Save the workbook
+        sheet.append([
+            "Transcript",
+            "Lexical Analysis",
+            "Emotion and Sentiment",
+            "Speech Patterns",
+            "Religious Rhetoric",
+            "Commands",
+            "Radical Probability",
+            "Radical Content",
+            "Classification"
+        ])
         workbook.save(file_path)
-    except Exception as e:
-        st.error(f"Error appending data to Excel: {e}")
+
+    # Open the workbook and active sheet
+    workbook = load_workbook(file_path)
+    sheet = workbook.active
+    
+    # Classification based on percentages
+    classification = classify_content(rp_percentage, rc_percentage)
+
+    # Extract analysis parts safely
+    lexical, emotion, speech_patterns, religious_rhetoric, commands = extract_analysis_parts(analysis_text)
+    
+    # Append the new data
+    row_data = [
+        transcript,
+        lexical,
+        emotion,
+        speech_patterns,
+        religious_rhetoric,
+        commands,
+        rp_percentage,
+        rc_percentage,
+        classification
+    ]
+    sheet.append(row_data)
+
+    # Apply coloring based on classification
+    fill_color = {
+        "red": "FF0000",
+        "yellow": "FFFF00",
+        "green": "00FF00"
+    }
+    
+    fill = PatternFill(start_color=fill_color[classification], end_color=fill_color[classification], fill_type="solid")
+    for cell in sheet[sheet.max_row]:
+        cell.fill = fill
+    
+    # Save the workbook
+    workbook.save(file_path)
 
 # Create downloads directory if it doesn't exist
 directory = 'downloads/'
@@ -610,44 +609,38 @@ if button and url:
                 
             # Proceed with transcription and analysis
             video_url = url
-            transcribe_video(video_url)  # Ensure this function is defined earlier
+            transcribe_youtube_video(video_url)  # Ensure this function is defined earlier
             
             # Get the analysis with an API key
             transcript = transcripted_output  # Ensure this global variable is populated
-            if transcript.strip():  # Check if transcript is not empty
-                final_assess, analysis = get_analysis_with_api_key(transcript)
-                
-                # Display the analysis in Streamlit
-                final_assess = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
-                analysis = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
-                with col2: 
-                    st.markdown(f"""
-                    <div class="assess" style="white-space: pre-wrap;">
-                    {final_assess}
-                    </div>
-                """, unsafe_allow_html=True)
-                
+            final_assess, analysis = get_analysis_with_api_key(transcript)
+            
+            # Display the analysis in Streamlit
+            final_assess = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
+            analysis = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
+            with col2: 
                 st.markdown(f"""
-                    <div class="report" style="white-space: pre-wrap;">
-                    {analysis}
-                    </div>
-                """, unsafe_allow_html=True)   
-    
-                # Extract radical probability and content percentage
-                rp_percentage, rc_percentage = extract_percentages(analysis)
+                <div class="assess" style="white-space: pre-wrap;">
+                {final_assess}
+                </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown(f"""
+                <div class="report" style="white-space: pre-wrap;">
+                {analysis}
+                </div>
+            """, unsafe_allow_html=True)   
 
-                # Append the results to the Excel
-                append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
+            # Extract radical probability and content percentage
+            rp_percentage, rc_percentage = extract_percentages(analysis)
 
-                # Optionally display the last 5 entries
-                try:
-                    df = pd.read_excel('analysis_results.xlsx')
-                    st.write("Last 5 entries in the file:")
-                    st.dataframe(df.tail())
-                except Exception as e:
-                    st.error(f"Error reading analysis results: {e}")
-            else:
-                st.error("Transcription failed or returned empty.")
+            # Append the results to the Excel
+            append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
+
+            # Optionally display the last 5 entries
+            df = pd.read_excel('analysis_results.xlsx')
+            st.write("Last 5 entries in the file:")
+            st.dataframe(df.tail())
         else:
             st.error("Unable to fetch video details. Please check the URL.")
 else:
