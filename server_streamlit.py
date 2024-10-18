@@ -488,7 +488,7 @@ if button and url:
         if video_title:
             # Convert duration from seconds to minutes:seconds format
             minutes, seconds = divmod(duration, 60)
-            video_length = f"{minutes}:{seconds:02d}"
+            video_length = f"{int(minutes)}:{int(seconds):02d}"
             
             # Display the fetched thumbnail and video details
             with col1:
