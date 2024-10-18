@@ -14,15 +14,66 @@ import csv
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import PatternFill
 import pandas as pd
+from urllib.parse import urlparse, parse_qs
 
-# Function to get YouTube video details using pytube
+# Function to identify YouTube URLs
+def is_youtube_url(url):
+    try:
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc.lower()
+        return (
+            domain.endswith("youtube.com") or
+            domain == "youtu.be"
+        )
+    except Exception as e:
+        st.error(f"Error parsing URL: {e}")
+        return False
+
+# Function to identify X.com (Twitter) URLs
+def is_xcom_url(url):
+    try:
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc.lower()
+        return (
+            domain.endswith("x.com") or
+            domain.endswith("twitter.com")
+        )
+    except Exception as e:
+        st.error(f"Error parsing URL: {e}")
+        return False
+
+# Function to get YouTube video details using pytube with enhanced URL handling
 def fetch_youtube_details(video_url):
     try:
-        yt = YouTube(video_url)
+        parsed_url = urlparse(video_url)
+        domain = parsed_url.netloc.lower()
+
+        if domain == "youtu.be":
+            # Shortened URL format
+            video_id = parsed_url.path.lstrip('/')
+        elif "youtube.com" in domain:
+            if parsed_url.path == "/watch":
+                # Standard watch URL
+                query_params = parse_qs(parsed_url.query)
+                video_id = query_params.get("v", [None])[0]
+            elif parsed_url.path.startswith("/embed/") or parsed_url.path.startswith("/v/"):
+                # Embed or /v/ URL format
+                video_id = parsed_url.path.split('/')[2]
+            else:
+                video_id = None
+        else:
+            video_id = None
+
+        if not video_id:
+            st.error("Could not extract video ID from the provided YouTube URL.")
+            return None, None, None
+
+        yt = YouTube(f"https://www.youtube.com/watch?v={video_id}")
         video_title = yt.title
         thumbnail_url = yt.thumbnail_url
         duration = yt.length  # Duration in seconds
         return video_title, thumbnail_url, duration
+
     except Exception as e:
         st.error(f"Error fetching YouTube video details: {e}")
         return None, None, None
@@ -50,9 +101,9 @@ def fetch_x_details(video_url):
 
 # Function to fetch video details based on URL type
 def fetch_video_details(video_url):
-    if "youtube.com" in video_url or "youtu.be" in video_url:
+    if is_youtube_url(video_url):
         return fetch_youtube_details(video_url)
-    elif "x.com" in video_url or "twitter.com" in video_url:
+    elif is_xcom_url(video_url):
         return fetch_x_details(video_url)
     else:
         st.error("Unsupported URL. Please provide a YouTube or X.com URL.")
@@ -284,7 +335,11 @@ def get_analysis_with_api_key(transcript):
     result = response['choices'][0]['message']['content']
 
     # Split the response into two parts based on the "[Separator]" line
-    final_assessment, analysis = result.split("[Separator]", 1)
+    try:
+        final_assessment, analysis = result.split("[Separator]", 1)
+    except ValueError:
+        st.error("Unexpected response format from OpenAI API.")
+        final_assessment, analysis = "N/A", "N/A"
     
     # Global variables to store final assessment and analysis
     print(f"Radical Content Analysis complete.")
@@ -332,23 +387,33 @@ def extract_analysis_parts(analysis_text):
     
     # Extract sections with default handling for missing parts
     lexical = extract_section("*Lexical Analysis*")
-    emotion = extract_section("*Emotion and Sentiment*")
-    speech_patterns = extract_section("*Speech Patterns*")
+    emotion = extract_section("*Emotion and Sentiment in Speech*")
+    speech_patterns = extract_section("*Speech Patterns and Intensity*")
     religious_rhetoric = extract_section("*Use of Religious Rhetoric*")
     commands = extract_section("*Frequency of Commands and Directives*")
     
     return lexical, emotion, speech_patterns, religious_rhetoric, commands
 
-# Function to append analysis to CSV
+# Function to append analysis to Excel
 def append_to_csv(transcript, analysis_text, rp_percentage, rc_percentage):
-    # File path for the CSV file
+    # File path for the Excel file
     file_path = "analysis_results.xlsx"
 
     # Check if file exists, otherwise create it with headers
     if not os.path.exists(file_path):
         workbook = Workbook()
         sheet = workbook.active
-        sheet.append(["Transcript", "Lexical Analysis", "Emotion and Sentiment", "Speech Patterns", "Religious Rhetoric", "Commands", "Radical Probability", "Radical Content", "Classification"])
+        sheet.append([
+            "Transcript",
+            "Lexical Analysis",
+            "Emotion and Sentiment",
+            "Speech Patterns",
+            "Religious Rhetoric",
+            "Commands",
+            "Radical Probability",
+            "Radical Content",
+            "Classification"
+        ])
         workbook.save(file_path)
 
     # Open the workbook and active sheet
@@ -362,7 +427,17 @@ def append_to_csv(transcript, analysis_text, rp_percentage, rc_percentage):
     lexical, emotion, speech_patterns, religious_rhetoric, commands = extract_analysis_parts(analysis_text)
     
     # Append the new data
-    row_data = [transcript, lexical, emotion, speech_patterns, religious_rhetoric, commands, rp_percentage, rc_percentage, classification]
+    row_data = [
+        transcript,
+        lexical,
+        emotion,
+        speech_patterns,
+        religious_rhetoric,
+        commands,
+        rp_percentage,
+        rc_percentage,
+        classification
+    ]
     sheet.append(row_data)
 
     # Apply coloring based on classification
@@ -385,7 +460,11 @@ if not os.path.exists(directory):
     os.makedirs(directory)
 
 # Set page configuration
-st.set_page_config(page_title="Cyber Crime Department - Goa Police", page_icon="https://upload.wikimedia.org/wikipedia/en/d/dd/Emblem_of_Goa_Police.png", layout="wide")
+st.set_page_config(
+    page_title="Cyber Crime Department - Goa Police",
+    page_icon="https://upload.wikimedia.org/wikipedia/en/d/dd/Emblem_of_Goa_Police.png",
+    layout="wide"
+)
 
 # Custom CSS to hide Streamlit menu and footer, set background to white, and stretch the navbar
 custom_style = """
@@ -479,11 +558,14 @@ st.markdown("""
 # Page title for Radical and Religious Content Analyzer using div and subtitle class
 st.markdown('<div class="subtitle">Radical and Religious Content Analyzer</div>', unsafe_allow_html=True)
 
-# # Page content spacing
-# st.markdown("<br><br><br>", unsafe_allow_html=True)
+# Page content spacing
+st.markdown("<br><br><br>", unsafe_allow_html=True)
 
 # Set up the Streamlit app
-url = st.text_input("Paste YouTube/X.com URL here", placeholder='https://www.youtube.com/ or https://x.com/')
+url = st.text_input(
+    "Paste YouTube/X.com URL here",
+    placeholder='https://www.youtube.com/ or https://x.com/'
+)
 button = st.button("Analyze")
 
 if button and url:
@@ -532,13 +614,13 @@ if button and url:
             # Extract radical probability and content percentage
             rp_percentage, rc_percentage = extract_percentages(analysis)
 
-            # Append the results to the CSV
-            # append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
+            # Append the results to the Excel
+            append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
 
-            # # Optionally display the last 5 entries
-            # df = pd.read_excel('analysis_results.xlsx')
-            # st.write("Last 5 entries in the file:")
-            # st.dataframe(df.tail())
+            # Optionally display the last 5 entries
+            df = pd.read_excel('analysis_results.xlsx')
+            st.write("Last 5 entries in the file:")
+            st.dataframe(df.tail())
         else:
             st.error("Unable to fetch video details. Please check the URL.")
 else:
