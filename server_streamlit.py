@@ -1,7 +1,6 @@
 import streamlit as st
 import os
 from pytube import YouTube
-import time
 import yt_dlp
 from pydub import AudioSegment
 from moviepy.editor import VideoFileClip
@@ -10,48 +9,13 @@ from google.cloud import storage
 from concurrent.futures import ThreadPoolExecutor
 import base64
 import json
-# async def run_analysis():
-#     if button and url:
-#         # Proceed with analysis once URL is available
-#         col1, col2 = st.columns([1, 1.5], gap="small")
-        
-#         with st.spinner('Fetching video details...'):
-#             video_title, thumbnail_url, duration = fetch_youtube_details(url)
-            
-#             if video_title:
-#                 minutes, seconds = divmod(duration, 60)
-#                 video_length = f"{minutes}:{seconds:02d}"
-                
-#                 # Display thumbnail and video details
-#                 with col1:
-#                     st.image(thumbnail_url, caption="Video Thumbnail", use_column_width=True)
-#                 with col2:
-#                     st.markdown('<h2 style="font-weight:bold;">Video Details</h2>', unsafe_allow_html=True)
-#                     st.write(f"**Title:** {video_title}")
-#                     st.write(f"**Length:** {video_length}")
-#                     if analysis:
-#                         st.write(f"Report on video: {analysis}")
-#             else:
-#                 st.error("Unable to fetch video details. Please check the URL.")
-#     else:
-#         st.write("Enter a valid YouTube URL and click Analyze to see the video details.")
+import openai
+import csv
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import PatternFill
+import pandas as pd
 
-# Function to get video details using pytube
-# def fetch_youtube_details(video_url):
-#     try:
-#         yt = YouTube(video_url)
-#         video_title = yt.title
-#         thumbnail_url = yt.thumbnail_url
-#         duration = yt.length  # Duration in seconds
-#         return video_title, thumbnail_url, duration
-#     except Exception as e:
-#         st.error(f"Error fetching video details: {e}")
-#         return None, None, None
-import streamlit as st
-import os
-from pytube import YouTube
-
-# Function to get video details using pytube
+# Function to get YouTube video details using pytube
 def fetch_youtube_details(video_url):
     try:
         yt = YouTube(video_url)
@@ -60,63 +24,47 @@ def fetch_youtube_details(video_url):
         duration = yt.length  # Duration in seconds
         return video_title, thumbnail_url, duration
     except Exception as e:
-        st.error(f"Error fetching video details: {e}")
+        st.error(f"Error fetching YouTube video details: {e}")
         return None, None, None
 
+# Function to get X.com (Twitter) video details using yt_dlp
+def fetch_x_details(video_url):
+    try:
+        ydl_opts = {
+            'quiet': True,
+            'skip_download': True,
+            'forcejson': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+        
+        # Extract relevant details
+        video_title = info.get('title', 'No Title')
+        thumbnail_url = info.get('thumbnail', '')
+        duration = info.get('duration', 0)  # Duration in seconds
+        
+        return video_title, thumbnail_url, duration
+    except Exception as e:
+        st.error(f"Error fetching X.com video details: {e}")
+        return None, None, None
 
-# pip install -r requirements.txt
-
-import yt_dlp
-from pydub import AudioSegment
-from moviepy.editor import VideoFileClip
-from google.cloud import speech
-from google.cloud import storage
-import os
+# Function to fetch video details based on URL type
+def fetch_video_details(video_url):
+    if "youtube.com" in video_url or "youtu.be" in video_url:
+        return fetch_youtube_details(video_url)
+    elif "x.com" in video_url or "twitter.com" in video_url:
+        return fetch_x_details(video_url)
+    else:
+        st.error("Unsupported URL. Please provide a YouTube or X.com URL.")
+        return None, None, None
 
 # Set your Google Cloud credentials here by pointing to the JSON key file
-# google_cloud_credentials = st.secrets["GOOGLE_APPLICATION_CREDENTIALS"]
-# google_cloud_credentials_path = st.secrets["GOOGLE_APPLICATION_CREDENTIALS_PATH"]
-# def set_google_cloud_credentials():
-#     # Retrieve the encoded credentials from Streamlit secrets
-#     encoded_credentials = st.secrets["GOOGLE_CLOUD_CREDENTIALS"]
+# Assuming you have already set up your Google Cloud credentials as shown in your code
 
-#     # Decode the base64-encoded credentials
-#     decoded_credentials = base64.b64decode(encoded_credentials).decode('utf-8')
-
-#     # Write the decoded credentials to a temporary file
-#     with open("gcloud_temp_credentials.json", "w") as cred_file:
-#         cred_file.write(decoded_credentials)
-
-#     # Set the environment variable to the path of the temporary file
-#     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcloud_temp_credentials.json"
-
-# # Call the function to set the credentials
-
-import os
-import streamlit as st
-import json
-
-# Access the credentials from Streamlit secrets
-google_cloud_credentials = st.secrets["google_cloud"]
-
-# Convert the Streamlit AttrDict to a regular dictionary
-google_cloud_credentials_dict = dict(google_cloud_credentials)
-
-# Write the credentials to a temporary JSON file
-with open("gcloud_temp_credentials.json", "w") as f:
-    json.dump(google_cloud_credentials_dict, f)
-
-# Set the environment variable to point to the temporary JSON file
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcloud_temp_credentials.json"
-
-# Now you can use Google Cloud services
-
-
-# Global variable to store the final transcribed output
+# Global variables to store the final transcribed output
 transcripted_output = ""
 transcripted_english_output = ""
 transcripted_hindi_output = ""
-
 
 # Function to clean up old video and audio files if they exist
 def cleanup_old_files():
@@ -133,7 +81,7 @@ def cleanup_old_files():
         os.remove(audio_path)
         print(f"Removed old audio file: {audio_path}")
 
-# Function to download YouTube video using yt-dlp
+# Function to download YouTube video using yt_dlp
 def download_youtube_video(video_url, output_video_path='video.mp4'):
     ydl_opts = {
         'format': 'best',
@@ -261,16 +209,6 @@ def transcribe_youtube_video(video_url):
     for chunk_path in audio_chunks:
         os.remove(chunk_path)
 
-
-
-
-import openai
-import csv
-import os
-from openpyxl import Workbook, load_workbook
-from openpyxl.styles import PatternFill
-import pandas as pd
-
 # Function to classify radical content based on percentage
 def classify_content(rp_percentage, rc_percentage):
     if rp_percentage >= 70 or rc_percentage >= 70:
@@ -279,63 +217,6 @@ def classify_content(rp_percentage, rc_percentage):
         return "yellow"
     else:
         return "green"
-
-# # Function to get analysis from OpenAI GPT-4 model
-# def get_analysis_with_api_key(transcript, api_key):
-#     openai.api_key = api_key
-    
-#     prompt = f"""
-#     You are tasked with analyzing transcripts of speeches or text content that might include both Hindi and English sections. The transcript has been processed using two separate speech-to-text APIs: one for Hindi and one for English. Analyze the provided transcript carefully, understanding both languages, and return the analysis based on the following five parameters. The transcript might contain mixed Hindi and English parts, so ensure you identify the language for each section and analyze the radical or religiously inflammatory language accordingly.
-
-#     ### Parameters to analyze:
-#     1. *Lexical Analysis*: Identify radical or religious terminology in both Hindi and English, including exclusionary language (e.g., "us vs. them"), calls to action, or divisive rhetoric.
-#     2. *Emotion and Sentiment in Speech*: Analyze the tone and sentiment in both languages. Look for negative emotions like anger or fear, which may incite followers or condemn opposing groups.
-#     3. *Speech Patterns and Intensity*: Identify the use of high volume, repetition, or urgency in either language to emphasize points, which are typical in radical speech.
-#     4. *Use of Religious Rhetoric*: Look for quotes from religious texts, apocalyptic themes, or divine rewards and punishments to justify actions, considering the context in both Hindi and English.
-#     5. *Frequency of Commands and Directives*: Examine the frequency of explicit calls to action, whether physical or ideological, in both languages.
-
-#     ### Standard Output Format:
-#     Return the analysis in this structured format:
-
-#     *Lexical Analysis*:  
-#     [Insert analysis here]
-
-#     *Emotion and Sentiment in Speech*:  
-#     [Insert analysis here]
-
-#     *Speech Patterns and Intensity*:  
-#     [Insert analysis here]
-
-#     *Use of Religious Rhetoric*:  
-#     [Insert analysis here]
-
-#     *Frequency of Commands and Directives*:  
-#     [Insert analysis here]
-
-#     *Final Assessment*:  
-#     Radical Probability: [Insert percentage here]  
-#     Radical Content: [Insert percentage here]
-
-#     Transcript: {transcript}
-#     """
-
-    
-#     # Making API call to GPT-4 using OpenAI ChatCompletion API
-#     response = openai.ChatCompletion.create(
-#         model="gpt-4",  # Use GPT-4 model
-#         messages=[
-#             {"role": "system", "content": "You are an assistant that analyzes transcripts for radical content."},
-#             {"role": "user", "content": prompt}
-#         ],
-#         max_tokens=1000
-#     )
-#     print(f"Radical Content Analysis complete.")
-#     return response['choices'][0]['message']['content']
-
-
-
-
-
 
 # Function to get analysis from OpenAI GPT-4 model
 def get_analysis_with_api_key(transcript):
@@ -392,19 +273,15 @@ def get_analysis_with_api_key(transcript):
     result = response['choices'][0]['message']['content']
 
     # Split the response into two parts based on the "[Separator]" line
-    final_assessment, analysis = result.split("[Separator]", 1)
+    try:
+        final_assessment, analysis = result.split("[Separator]", 1)
+    except ValueError:
+        st.error("Unexpected response format from OpenAI API.")
+        final_assessment, analysis = "N/A", "N/A"
     
     # Global variables to store final assessment and analysis
     print(f"Radical Content Analysis complete.")
     return final_assessment, analysis
-
-
-
-
-
-
-
-
 
 # Function to extract radical percentage and content percentage
 def extract_percentages(analysis_text):
@@ -434,8 +311,6 @@ def extract_percentages(analysis_text):
     rc_percentage = convert_to_percentage(rc_line[0].split(":")[1].strip()) if rc_line else 0
     
     return rp_percentage, rc_percentage
-
-
 
 # Function to safely extract values from the analysis text
 def extract_analysis_parts(analysis_text):
@@ -496,11 +371,6 @@ def append_to_csv(transcript, analysis_text, rp_percentage, rc_percentage):
     
     # Save the workbook
     workbook.save(file_path)
-    
-
-
-
-
 
 # Create downloads directory if it doesn't exist
 directory = 'downloads/'
@@ -602,18 +472,18 @@ st.markdown("""
 # Page title for Radical and Religious Content Analyzer using div and subtitle class
 st.markdown('<div class="subtitle">Radical and Religious Content Analyzer</div>', unsafe_allow_html=True)
 
+# Page content spacing
+st.markdown("<br><br><br>", unsafe_allow_html=True)
+
 # Set up the Streamlit app
-url = st.text_input("Paste Youtube/Twitter URL here", placeholder='https://www.youtube.com/ or https://x.com/')
+url = st.text_input("Paste YouTube/X.com URL here", placeholder='https://www.youtube.com/ or https://x.com/')
 button = st.button("Analyze")
-
-
-# Actual Output
 
 if button and url:
     col1, col2 = st.columns([1, 1.5], gap="small")
     
     with st.spinner('Fetching video details... Estimated time: 4 mins'):
-        video_title, thumbnail_url, duration = fetch_youtube_details(url)
+        video_title, thumbnail_url, duration = fetch_video_details(url)
         
         if video_title:
             # Convert duration from seconds to minutes:seconds format
@@ -628,28 +498,15 @@ if button and url:
                 st.write(f"**Title:** {video_title}")
                 st.write(f"**Length:** {video_length}")
                 
-            # Proceed with transcription and analysis here
+            # Proceed with transcription and analysis
             video_url = url
             transcribe_youtube_video(video_url)  # Ensure this function is defined earlier
             
-            # Example: Get the analysis with an API key
-            transcript = transcripted_output  # Make sure this global variable is populated
-            # Actualy Analysis
+            # Get the analysis with an API key
+            transcript = transcripted_output  # Ensure this global variable is populated
             final_assess, analysis = get_analysis_with_api_key(transcript)
             
-            # Test Analysis  
-            # Open and read the file
-            # with open('sample_data.txt', 'r') as file:
-            #     analysis = file.read()
-            # with open('final_assessment.txt', 'r') as file:
-            #     final_assess = file.read()    
-            # # Print the analysis in the terminal
-            # print("Analysis Output:")
-            # print(analysis)
-            
-            
-            
-            # Now display the analysis in Streamlit
+            # Display the analysis in Streamlit
             final_assess = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
             analysis = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
             with col2: 
@@ -669,117 +526,13 @@ if button and url:
             rp_percentage, rc_percentage = extract_percentages(analysis)
 
             # Append the results to the CSV
-            # append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
+            append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
 
-            # df = pd.read_excel('analysis_results.xlsx')
-
-            # Print the last 5 entries
-            # print("Last 5 entries in the file:")
-            # df.tail()
+            # Optionally display the last 5 entries
+            df = pd.read_excel('analysis_results.xlsx')
+            st.write("Last 5 entries in the file:")
+            st.dataframe(df.tail())
         else:
             st.error("Unable to fetch video details. Please check the URL.")
 else:
-    st.write("Enter a valid YouTube or Twitter URL and click Analyze to see the video details.")
-
-
-# Sample output
-# col1, col2 = st.columns([1, 1.5], gap="small")
-
-# with st.spinner('Fetching video details...'):
-#     # video_title, thumbnail_url, duration = fetch_youtube_details(url)
-    
-#     # Convert duration from seconds to minutes:seconds format
-#     # minutes, seconds = divmod(duration, 60)
-#     video_title = "Sample Video"
-#     video_length = f"{8}:{42:02d}"
-#     thumbnail_url = "https://i.ytimg.com/vi/vx5dSS3BBOk/maxresdefault.jpg"
-#     # Display the fetched thumbnail and video details
-#     with col1:
-#         st.image(thumbnail_url, caption="Video Thumbnail", use_column_width=True)
-#         st.write("Enter a valid YouTube URL and click Analyze to see the video details.")
-#     with col2:
-#         st.markdown('<h2 style="font-weight:bold;">Video Details</h2>', unsafe_allow_html=True)
-#         st.write(f"**Title:** {video_title}")
-#         st.write(f"**Length:** {video_length}")
-    
-#       # Make sure this global variable is populated
-#     # analysis = get_analysis_with_api_key(transcript, api_key)
-    
-#     # Test Analysis  
-#     # Open and read the file
-#     with open('sample_data.txt', 'r') as file:
-#         analysis = file.read()
-#     with open('final_assessment.txt', 'r') as file:
-#         final_assess = file.read()    
-#     # Print the analysis in the terminal
-#     print("Analysis Output:")
-#     print(analysis)
-#     # Now display the analysis in Streamlit
-#     final_assess = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
-#     analysis = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
-#     with col2: 
-#         st.markdown(f"""
-#         <div class="assess" style="white-space: pre-wrap;">
-#         {final_assess}
-#         </div>
-#     """, unsafe_allow_html=True)
-    
-#     st.markdown(f"""
-#         <div class="report" style="white-space: pre-wrap;">
-#         {analysis}
-#         </div>
-#     """, unsafe_allow_html=True)    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Your other functions (fetch_youtube_details, transcribe_youtube_video, etc.)
-
+    st.write("Enter a valid YouTube or X.com URL and click Analyze to see the video details.")
