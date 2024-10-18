@@ -273,11 +273,7 @@ def get_analysis_with_api_key(transcript):
     result = response['choices'][0]['message']['content']
 
     # Split the response into two parts based on the "[Separator]" line
-    try:
-        final_assessment, analysis = result.split("[Separator]", 1)
-    except ValueError:
-        st.error("Unexpected response format from OpenAI API.")
-        final_assessment, analysis = "N/A", "N/A"
+    final_assessment, analysis = result.split("[Separator]", 1)
     
     # Global variables to store final assessment and analysis
     print(f"Radical Content Analysis complete.")
@@ -472,8 +468,8 @@ st.markdown("""
 # Page title for Radical and Religious Content Analyzer using div and subtitle class
 st.markdown('<div class="subtitle">Radical and Religious Content Analyzer</div>', unsafe_allow_html=True)
 
-# Page content spacing
-st.markdown("<br><br><br>", unsafe_allow_html=True)
+# # Page content spacing
+# st.markdown("<br><br><br>", unsafe_allow_html=True)
 
 # Set up the Streamlit app
 url = st.text_input("Paste YouTube/X.com URL here", placeholder='https://www.youtube.com/ or https://x.com/')
@@ -526,12 +522,12 @@ if button and url:
             rp_percentage, rc_percentage = extract_percentages(analysis)
 
             # Append the results to the CSV
-            append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
+            # append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
 
-            # Optionally display the last 5 entries
-            df = pd.read_excel('analysis_results.xlsx')
-            st.write("Last 5 entries in the file:")
-            st.dataframe(df.tail())
+            # # Optionally display the last 5 entries
+            # df = pd.read_excel('analysis_results.xlsx')
+            # st.write("Last 5 entries in the file:")
+            # st.dataframe(df.tail())
         else:
             st.error("Unable to fetch video details. Please check the URL.")
 else:
