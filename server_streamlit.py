@@ -521,7 +521,7 @@ custom_style = """
     /* Set background color to white */
     body {
         background-color: white !important;
-        color: black !important;
+        #color: black !important;
     }
 
     /* Style for Navbar */
