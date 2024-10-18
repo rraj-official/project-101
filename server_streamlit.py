@@ -635,12 +635,12 @@ if button and url:
             rp_percentage, rc_percentage = extract_percentages(analysis)
 
             # Append the results to the Excel
-            append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
+            # append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
 
-            # Optionally display the last 5 entries
-            df = pd.read_excel('analysis_results.xlsx')
-            st.write("Last 5 entries in the file:")
-            st.dataframe(df.tail())
+            # # Optionally display the last 5 entries
+            # df = pd.read_excel('analysis_results.xlsx')
+            # st.write("Last 5 entries in the file:")
+            # st.dataframe(df.tail())
         else:
             st.error("Unable to fetch video details. Please check the URL.")
 else:
