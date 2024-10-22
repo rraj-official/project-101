@@ -630,7 +630,7 @@ if button and url:
                 {analysis}
                 </div>
             """, unsafe_allow_html=True)   
-
+            st.write(transcript)
             # Extract radical probability and content percentage
             rp_percentage, rc_percentage = extract_percentages(analysis)
 
