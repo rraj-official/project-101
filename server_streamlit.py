@@ -358,8 +358,8 @@ def get_analysis_with_api_key(transcript):
     try:
         final_assessment, analysis = result.split("[Separator]", 1)
     except ValueError:
-        st.error("Unexpected response format from OpenAI API.")
-        final_assessment, analysis = "N/A", "N/A"
+        st.error("Video is too long. Try a shorter video.")
+        final_assessment, analysis = "", ""
     
     # Global variables to store final assessment and analysis
     print(f"Radical Content Analysis complete.")
