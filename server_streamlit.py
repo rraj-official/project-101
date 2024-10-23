@@ -593,7 +593,7 @@ t = 2
 if button and url:
     col1, col2 = st.columns([1, 1.5], gap="small")
     
-    with st.spinner('Fetching video details... Estimated time: {t} mins'):
+    with st.spinner(f"Fetching video details... Estimated time: {t} mins"):
         video_title, thumbnail_url, duration = fetch_video_details(url)
         
         if video_title:
