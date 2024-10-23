@@ -15,6 +15,8 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import PatternFill
 import pandas as pd
 from urllib.parse import urlparse, parse_qs
+import threading
+import time
 
 # Function to identify YouTube URLs
 def is_youtube_url(url):
@@ -42,42 +44,7 @@ def is_xcom_url(url):
         st.error(f"Error parsing URL: {e}")
         return False
 
-# Function to get YouTube video details using pytube with enhanced URL handling
-# def fetch_youtube_details(video_url):
-#     try:
-#         parsed_url = urlparse(video_url)
-#         domain = parsed_url.netloc.lower()
-
-#         if domain == "youtu.be":
-#             # Shortened URL format
-#             video_id = parsed_url.path.lstrip('/')
-#         elif "youtube.com" in domain:
-#             if parsed_url.path == "/watch":
-#                 # Standard watch URL
-#                 query_params = parse_qs(parsed_url.query)
-#                 video_id = query_params.get("v", [None])[0]
-#             elif parsed_url.path.startswith("/embed/") or parsed_url.path.startswith("/v/"):
-#                 # Embed or /v/ URL format
-#                 video_id = parsed_url.path.split('/')[2]
-#             else:
-#                 video_id = None
-#         else:
-#             video_id = None
-
-#         if not video_id:
-#             st.error("Could not extract video ID from the provided YouTube URL.")
-#             return None, None, None
-
-#         yt = YouTube(f"https://www.youtube.com/watch?v={video_id}")
-#         video_title = yt.title
-#         thumbnail_url = yt.thumbnail_url
-#         duration = yt.length  # Duration in seconds
-#         return video_title, thumbnail_url, duration
-
-#     except Exception as e:
-#         st.error(f"Error fetching YouTube video details: {e}")
-#         return None, None, None
-    
+# Function to get YouTube video details using yt_dlp
 def fetch_youtube_details(video_url):
     try:
         ydl_opts = {
@@ -141,7 +108,6 @@ with open("gcloud_temp_credentials.json", "w") as f:
 
 # Set the environment variable to point to the temporary JSON file
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcloud_temp_credentials.json"
-
 
 # Global variables to store the final transcribed output
 transcripted_output = ""
@@ -474,6 +440,69 @@ def append_to_csv(transcript, analysis_text, rp_percentage, rc_percentage):
     # Save the workbook
     workbook.save(file_path)
 
+# Function to handle the entire analysis process
+def run_analysis(url, status_placeholder):
+    try:
+        video_title, thumbnail_url, duration = fetch_video_details(url)
+        
+        if video_title:
+            # Convert duration from seconds to minutes:seconds format
+            minutes, seconds = divmod(duration, 60)
+            video_length = f"{int(minutes)}:{int(seconds):02d}"
+            
+            # Display the fetched thumbnail and video details
+            with st.container():
+                col1, col2 = st.columns([1, 1.5], gap="small")
+                with col1:
+                    st.image(thumbnail_url, caption="Video Thumbnail", use_column_width=True)
+                with col2:
+                    st.markdown('<h2 style="font-weight:bold;">Video Details</h2>', unsafe_allow_html=True)
+                    st.write(f"**Title:** {video_title}")
+                    st.write(f"**Length:** {video_length}")
+            
+            # Update status
+            status_placeholder.info("Starting transcription and analysis...")
+            
+            # Proceed with transcription and analysis
+            video_url = url
+            transcribe_youtube_video(video_url)  # Ensure this function is defined earlier
+            
+            # Get the analysis with an API key
+            transcript = transcripted_output  # Ensure this global variable is populated
+            final_assess, analysis = get_analysis_with_api_key(transcript)
+            
+            # Display the analysis in Streamlit
+            final_assess = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
+            analysis = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
+            
+            with st.container():
+                st.markdown(f"""
+                <div class="assess" style="white-space: pre-wrap;">
+                {final_assess}
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown(f"""
+                    <div class="report" style="white-space: pre-wrap;">
+                    {analysis}
+                    </div>
+                """, unsafe_allow_html=True)   
+            
+            # Extract radical probability and content percentage
+            rp_percentage, rc_percentage = extract_percentages(analysis)
+
+            # Append the results to the Excel
+            # append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
+
+            # # Optionally display the last 5 entries
+            # df = pd.read_excel('analysis_results.xlsx')
+            # st.write("Last 5 entries in the file:")
+            # st.dataframe(df.tail())
+        else:
+            status_placeholder.error("Unable to fetch video details. Please check the URL.")
+    except Exception as e:
+        status_placeholder.error(f"An error occurred: {e}")
+
 # Create downloads directory if it doesn't exist
 directory = 'downloads/'
 if not os.path.exists(directory):
@@ -497,7 +526,7 @@ custom_style = """
     /* Set background color to white */
     body {
         background-color: white !important;
-        #color: black !important;
+        /* color: black !important; */
     }
 
     /* Style for Navbar */
@@ -589,59 +618,30 @@ url = st.text_input(
 button = st.button("Analyze")
 
 if button and url:
-    col1, col2 = st.columns([1, 1.5], gap="small")
+    # Create a placeholder for status messages
+    status_placeholder = st.empty()
     
-    with st.spinner('Fetching video details... Estimated time: 4 mins'):
-        video_title, thumbnail_url, duration = fetch_video_details(url)
-        
-        if video_title:
-            # Convert duration from seconds to minutes:seconds format
-            minutes, seconds = divmod(duration, 60)
-            video_length = f"{int(minutes)}:{int(seconds):02d}"
-            
-            # Display the fetched thumbnail and video details
-            with col1:
-                st.image(thumbnail_url, caption="Video Thumbnail", use_column_width=True)
-            with col2:
-                st.markdown('<h2 style="font-weight:bold;">Video Details</h2>', unsafe_allow_html=True)
-                st.write(f"**Title:** {video_title}")
-                st.write(f"**Length:** {video_length}")
-                
-            # Proceed with transcription and analysis
-            video_url = url
-            transcribe_youtube_video(video_url)  # Ensure this function is defined earlier
-            
-            # Get the analysis with an API key
-            transcript = transcripted_output  # Ensure this global variable is populated
-            final_assess, analysis = get_analysis_with_api_key(transcript)
-            
-            # Display the analysis in Streamlit
-            final_assess = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
-            analysis = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
-            with col2: 
-                st.markdown(f"""
-                <div class="assess" style="white-space: pre-wrap;">
-                {final_assess}
-                </div>
-            """, unsafe_allow_html=True)
-            
-            st.markdown(f"""
-                <div class="report" style="white-space: pre-wrap;">
-                {analysis}
-                </div>
-            """, unsafe_allow_html=True)   
-            # st.write(transcript)
-            # Extract radical probability and content percentage
-            rp_percentage, rc_percentage = extract_percentages(analysis)
-
-            # Append the results to the Excel
-            # append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
-
-            # # Optionally display the last 5 entries
-            # df = pd.read_excel('analysis_results.xlsx')
-            # st.write("Last 5 entries in the file:")
-            # st.dataframe(df.tail())
-        else:
-            st.error("Unable to fetch video details. Please check the URL.")
+    # Define the countdown schedule (message, wait time in seconds)
+    countdown_schedule = [
+        ("Estimated time: 3 mins", 30),
+        ("Estimated time: 2 mins", 60),
+        ("Estimated time: 1 min", 60),
+        ("1 min left", 60)
+    ]
+    
+    # Start the analysis in a separate thread
+    analysis_thread = threading.Thread(target=run_analysis, args=(url, status_placeholder))
+    analysis_thread.start()
+    
+    # Initialize countdown
+    for message, wait_time in countdown_schedule:
+        status_placeholder.info(message)
+        time.sleep(wait_time)
+    
+    # After countdown, keep "1 min left" message
+    status_placeholder.info("1 min left")
+    
+    # Optionally, wait for the analysis to finish if it hasn't already
+    analysis_thread.join()
 else:
     st.write("Enter a valid YouTube or X.com URL and click Analyze to see the video details.")
