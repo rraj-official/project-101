@@ -351,14 +351,14 @@ def get_analysis_with_api_key(transcript):
         ],
         max_tokens=1000
     )
-    
+    st.write(response)
     result = response['choices'][0]['message']['content']
 
     # Split the response into two parts based on the "[Separator]" line
     try:
         final_assessment, analysis = result.split("[Separator]", 1)
     except ValueError:
-        st.error("Video is too long. Try a shorter video.")
+        st.error("Error analyzing video")
         final_assessment, analysis = "", ""
     
     # Global variables to store final assessment and analysis
@@ -630,7 +630,7 @@ if button and url:
                 {analysis}
                 </div>
             """, unsafe_allow_html=True)   
-            st.write(transcript)
+            # st.write(transcript)
             # Extract radical probability and content percentage
             rp_percentage, rc_percentage = extract_percentages(analysis)
 
