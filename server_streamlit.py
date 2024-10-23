@@ -262,7 +262,7 @@ def transcribe_audio_chunks_in_parallel(bucket_name, chunk_paths, language_code=
 # Updated function to handle the entire workflow
 def transcribe_youtube_video(video_url):
     global transcripted_output  # Declare the global variable
-
+    t=0
     # Step 1: Clean up old video and audio files if they exist
     cleanup_old_files()
     
@@ -588,10 +588,12 @@ url = st.text_input(
 )
 button = st.button("Analyze")
 
+t = 2
+
 if button and url:
     col1, col2 = st.columns([1, 1.5], gap="small")
     
-    with st.spinner('Fetching video details... Estimated time: 4 mins'):
+    with st.spinner('Fetching video details... Estimated time: {t} mins'):
         video_title, thumbnail_url, duration = fetch_video_details(url)
         
         if video_title:
