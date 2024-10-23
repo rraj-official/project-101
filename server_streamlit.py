@@ -621,7 +621,7 @@ if button and url:
             final_assess, analysis = get_analysis_with_api_key(transcript)
             
             # Display the analysis in Streamlit
-            # final_assess = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
+            final_assess = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
             analysis = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
             with col2: 
                 st.markdown(f"""
