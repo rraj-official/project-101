@@ -16,6 +16,10 @@ from openpyxl.styles import PatternFill
 import pandas as pd
 from urllib.parse import urlparse, parse_qs
 
+# Timer
+if 't' not in st.session_state:
+    st.session_state.t = 2  # Default value
+
 # Function to identify YouTube URLs
 def is_youtube_url(url):
     try:
@@ -262,7 +266,6 @@ def transcribe_audio_chunks_in_parallel(bucket_name, chunk_paths, language_code=
 # Updated function to handle the entire workflow
 def transcribe_youtube_video(video_url):
     global transcripted_output  # Declare the global variable
-    t=0
     # Step 1: Clean up old video and audio files if they exist
     cleanup_old_files()
     
@@ -277,6 +280,7 @@ def transcribe_youtube_video(video_url):
     bucket_name = 'hackathon_police'  # Replace with your Google Cloud Storage bucket name
 
     transcript_hindi = transcribe_audio_chunks_in_parallel(bucket_name, audio_chunks, language_code='hi-IN')
+    st.session_state.t = 1
     transcript_english = transcribe_audio_chunks_in_parallel(bucket_name, audio_chunks, language_code='en-US')
 
     transcripted_english_output = transcript_english
@@ -588,12 +592,11 @@ url = st.text_input(
 )
 button = st.button("Analyze")
 
-t = 2
 
 if button and url:
     col1, col2 = st.columns([1, 1.5], gap="small")
     
-    with st.spinner(f"Fetching video details... Estimated time: {t} mins"):
+    with st.spinner(f"Fetching video details... Estimated time: {st.session_state.t} mins"):
         video_title, thumbnail_url, duration = fetch_video_details(url)
         
         if video_title:
