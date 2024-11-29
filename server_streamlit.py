@@ -3,7 +3,7 @@ import os
 from pytube import YouTube
 import yt_dlp
 from pydub import AudioSegment
-from moviepy.editor import VideoFileClip
+from moviepy import VideoFileClip
 from google.cloud import speech
 from google.cloud import storage
 from concurrent.futures import ThreadPoolExecutor
