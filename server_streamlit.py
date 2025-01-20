@@ -636,7 +636,7 @@ if button and (url or uploaded_file):
                 
                 # Display the fetched thumbnail and video details
                 with col1:
-                    st.image(thumbnail_url, caption="Video Thumbnail", use_column_width=True)
+                    st.image(thumbnail_url, caption="Video Thumbnail", use_container_width=True)
                 with col2:
                     st.markdown('<h2 style="font-weight:bold;">Video Details</h2>', unsafe_allow_html=True)
                     st.write(f"**Title:** {video_title}")
@@ -680,14 +680,35 @@ if button and (url or uploaded_file):
                 st.error("Unable to fetch video details. Please check the URL.")
                 
     elif uploaded_file:
-        with st.spinner("Processing local video file..."):
+        with st.spinner("Processing uploaded video file... Estimated time: {st.session_state.t} mins"):
             # Save uploaded file to a temporary path
             temp_video_path = "local_video.mp4"
-            with open(temp_video_path, "wb") as f:
-                f.write(uploaded_file.read())
+            # with open(temp_video_path, "wb") as f:
+            #     f.write(uploaded_file.read())
             
-            # Display basic info for local file if needed
-            st.video(temp_video_path)
+            # Determine video title and duration using moviepy
+            video_title = uploaded_file.name
+            try:
+                clip = VideoFileClip(temp_video_path)
+                duration = int(clip.duration)  # duration in seconds
+                clip.reader.close()  # Close reader to release file handle
+                clip.audio.reader.close_proc() if clip.audio else None
+            except Exception as e:
+                st.error(f"Error reading video duration: {e}")
+                duration = 0
+            
+            # Convert duration from seconds to minutes:seconds format
+            minutes, seconds = divmod(duration, 60)
+            video_length = f"{int(minutes)}:{int(seconds):02d}"
+            
+            # Display video details similar to URL case
+            with col1:
+                # No thumbnail available for local file; optionally display a placeholder
+                st.image("https://via.placeholder.com/150", caption="No Thumbnail", use_container_width=True)
+            with col2:
+                st.markdown('<h2 style="font-weight:bold;">Video Details</h2>', unsafe_allow_html=True)
+                st.write(f"**Title:** {video_title}")
+                st.write(f"**Length:** {video_length}")
             
             # Transcribe using the new function
             transcribe_local_video(temp_video_path)
@@ -710,7 +731,8 @@ if button and (url or uploaded_file):
                 </div>
             """, unsafe_allow_html=True)
             
-            # Clean up the temporary local video file if desired
+            # Clean up the temporary local video file
             os.remove(temp_video_path)
+
 else:
     st.write("Enter a valid YouTube or X.com URL and click Analyze to see the video details.")
