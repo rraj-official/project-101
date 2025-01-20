@@ -615,7 +615,10 @@ url = st.text_input(
     "Paste YouTube/X.com URL here",
     placeholder='https://www.youtube.com/ or https://x.com/'
 )
-uploaded_file = st.file_uploader("Or upload a local video file", type=["mp4", "mov", "avi"])
+st.markdown('<div class="centered-input">', unsafe_allow_html=True)
+url = st.text_input("OR")
+st.markdown('</div>', unsafe_allow_html=True)
+uploaded_file = st.file_uploader("Upload a local video file", type=["mp4", "mov", "avi"])
 button = st.button("Analyze")
 
 
@@ -625,11 +628,54 @@ if button and (url or uploaded_file):
     if url:
         with st.spinner(f"Fetching video details... Estimated time: {st.session_state.t} mins"):
             video_title, thumbnail_url, duration = fetch_video_details(url)
+            
             if video_title:
-                # ... existing YouTube/X.com handling logic ...
+                # Convert duration from seconds to minutes:seconds format
+                minutes, seconds = divmod(duration, 60)
+                video_length = f"{int(minutes)}:{int(seconds):02d}"
+                
+                # Display the fetched thumbnail and video details
+                with col1:
+                    st.image(thumbnail_url, caption="Video Thumbnail", use_column_width=True)
+                with col2:
+                    st.markdown('<h2 style="font-weight:bold;">Video Details</h2>', unsafe_allow_html=True)
+                    st.write(f"**Title:** {video_title}")
+                    st.write(f"**Length:** {video_length}")
+                    
+                # Proceed with transcription and analysis
                 video_url = url
-                transcribe_youtube_video(video_url)
-                # ... remaining analysis code ...
+                transcribe_youtube_video(video_url)  # Ensure this function is defined earlier
+                
+                # Get the analysis with an API key
+                transcript = transcripted_output  # Ensure this global variable is populated
+                final_assess, analysis = get_analysis_with_api_key(transcript)
+                
+                # Display the analysis in Streamlit
+                final_assess = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
+                analysis = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
+                with col2: 
+                    st.markdown(f"""
+                    <div class="assess" style="white-space: pre-wrap;">
+                    {final_assess}
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown(f"""
+                    <div class="report" style="white-space: pre-wrap;">
+                    {analysis}
+                    </div>
+                """, unsafe_allow_html=True)   
+                # st.write(transcript)
+                # Extract radical probability and content percentage
+                rp_percentage, rc_percentage = extract_percentages(analysis)
+
+                # Append the results to the Excel
+                # append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
+
+                # # Optionally display the last 5 entries
+                # df = pd.read_excel('analysis_results.xlsx')
+                # st.write("Last 5 entries in the file:")
+                # st.dataframe(df.tail())
             else:
                 st.error("Unable to fetch video details. Please check the URL.")
                 
