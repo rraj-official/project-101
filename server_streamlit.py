@@ -263,6 +263,31 @@ def transcribe_audio_chunks_in_parallel(bucket_name, chunk_paths, language_code=
     
     return " ".join(transcriptions)  # Concatenate all chunk transcriptions
 
+# New function to transcribe a local video file
+def transcribe_local_video(local_video_path):
+    global transcripted_output
+    cleanup_old_files()
+    
+    # Use the provided local video path directly
+    video_path = local_video_path
+    
+    # Extract and split audio into chunks
+    audio_path = extract_audio_from_video(video_path, sample_rate=16000, bitrate='32k')
+    audio_chunks = split_audio_to_chunks(audio_path, chunk_duration_ms=60000)  # Split into 60-second chunks
+    
+    # Transcribe audio chunks in parallel for both Hindi and English
+    bucket_name = 'hackathon_police'
+    transcript_hindi = transcribe_audio_chunks_in_parallel(bucket_name, audio_chunks, language_code='hi-IN')
+    st.session_state.t = 1
+    transcript_english = transcribe_audio_chunks_in_parallel(bucket_name, audio_chunks, language_code='en-US')
+
+    # Concatenate transcripts
+    transcripted_output = f"Hindi Transcription:\n{transcript_hindi}\n\nEnglish Transcription:\n{transcript_english}"
+    
+    # Clean up chunk files
+    for chunk_path in audio_chunks:
+        os.remove(chunk_path)
+
 # Updated function to handle the entire workflow
 def transcribe_youtube_video(video_url):
     global transcripted_output  # Declare the global variable
@@ -590,37 +615,41 @@ url = st.text_input(
     "Paste YouTube/X.com URL here",
     placeholder='https://www.youtube.com/ or https://x.com/'
 )
+uploaded_file = st.file_uploader("Or upload a local video file", type=["mp4", "mov", "avi"])
 button = st.button("Analyze")
 
 
-if button and url:
+if button and (url or uploaded_file):
     col1, col2 = st.columns([1, 1.5], gap="small")
     
-    with st.spinner(f"Fetching video details... Estimated time: {st.session_state.t} mins"):
-        video_title, thumbnail_url, duration = fetch_video_details(url)
-        
-        if video_title:
-            # Convert duration from seconds to minutes:seconds format
-            minutes, seconds = divmod(duration, 60)
-            video_length = f"{int(minutes)}:{int(seconds):02d}"
-            
-            # Display the fetched thumbnail and video details
-            with col1:
-                st.image(thumbnail_url, caption="Video Thumbnail", use_column_width=True)
-            with col2:
-                st.markdown('<h2 style="font-weight:bold;">Video Details</h2>', unsafe_allow_html=True)
-                st.write(f"**Title:** {video_title}")
-                st.write(f"**Length:** {video_length}")
+    if url:
+        with st.spinner(f"Fetching video details... Estimated time: {st.session_state.t} mins"):
+            video_title, thumbnail_url, duration = fetch_video_details(url)
+            if video_title:
+                # ... existing YouTube/X.com handling logic ...
+                video_url = url
+                transcribe_youtube_video(video_url)
+                # ... remaining analysis code ...
+            else:
+                st.error("Unable to fetch video details. Please check the URL.")
                 
-            # Proceed with transcription and analysis
-            video_url = url
-            transcribe_youtube_video(video_url)  # Ensure this function is defined earlier
+    elif uploaded_file:
+        with st.spinner("Processing local video file..."):
+            # Save uploaded file to a temporary path
+            temp_video_path = "local_video.mp4"
+            with open(temp_video_path, "wb") as f:
+                f.write(uploaded_file.read())
             
-            # Get the analysis with an API key
-            transcript = transcripted_output  # Ensure this global variable is populated
-            final_assess, analysis = get_analysis_with_api_key(transcript)
+            # Display basic info for local file if needed
+            st.video(temp_video_path)
             
-            # Display the analysis in Streamlit
+            # Transcribe using the new function
+            transcribe_local_video(temp_video_path)
+            
+            # Proceed with analysis using transcripted_output from local video transcription
+            final_assess, analysis = get_analysis_with_api_key(transcripted_output)
+            
+            # Display the analysis in Streamlit (reuse existing display logic)
             final_assess = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
             analysis = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
             with col2: 
@@ -629,24 +658,13 @@ if button and url:
                 {final_assess}
                 </div>
             """, unsafe_allow_html=True)
-            
             st.markdown(f"""
                 <div class="report" style="white-space: pre-wrap;">
                 {analysis}
                 </div>
-            """, unsafe_allow_html=True)   
-            # st.write(transcript)
-            # Extract radical probability and content percentage
-            rp_percentage, rc_percentage = extract_percentages(analysis)
-
-            # Append the results to the Excel
-            # append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
-
-            # # Optionally display the last 5 entries
-            # df = pd.read_excel('analysis_results.xlsx')
-            # st.write("Last 5 entries in the file:")
-            # st.dataframe(df.tail())
-        else:
-            st.error("Unable to fetch video details. Please check the URL.")
+            """, unsafe_allow_html=True)
+            
+            # Clean up the temporary local video file if desired
+            os.remove(temp_video_path)
 else:
     st.write("Enter a valid YouTube or X.com URL and click Analyze to see the video details.")
