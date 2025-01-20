@@ -615,9 +615,8 @@ url = st.text_input(
     "Paste YouTube/X.com URL here",
     placeholder='https://www.youtube.com/ or https://x.com/'
 )
-st.markdown('<div class="centered-input">', unsafe_allow_html=True)
-st.text_input("OR")
-st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown('<div>Radical and Religious Content Analyzer</div>', unsafe_allow_html=True)
 uploaded_file = st.file_uploader("Upload a local video file", type=["mp4", "mov", "avi"])
 button = st.button("Analyze")
 
