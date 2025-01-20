@@ -617,7 +617,7 @@ url = st.text_input(
 )
 
 st.markdown('<div style="text-align: center;"> <p>OR</p></div>', unsafe_allow_html=True)
-uploaded_file = st.file_uploader("Upload a local video file", type=["mp4", "mov", "avi"])
+uploaded_file = st.file_uploader("Upload a local video or audio file", type=["mp4", "mov", "avi", "m4a"])
 button = st.button("Analyze")
 
 
