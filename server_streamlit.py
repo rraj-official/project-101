@@ -679,7 +679,7 @@ if button and (url or uploaded_file):
                 st.error("Unable to fetch video details. Please check the URL.")
                 
     elif uploaded_file:
-        with st.spinner("Processing local video file... Estimated time: {st.session_state.t} mins"):
+        with st.spinner(f"Processing local video file... Estimated time: {st.session_state.t} mins"):
             # Save uploaded file to a temporary path
             temp_video_path = "local_video.mp4"
             with open(temp_video_path, "wb") as f:
