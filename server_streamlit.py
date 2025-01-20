@@ -616,7 +616,7 @@ url = st.text_input(
     placeholder='https://www.youtube.com/ or https://x.com/'
 )
 st.markdown('<div class="centered-input">', unsafe_allow_html=True)
-url = st.text_input("OR")
+st.text_input("OR")
 st.markdown('</div>', unsafe_allow_html=True)
 uploaded_file = st.file_uploader("Upload a local video file", type=["mp4", "mov", "avi"])
 button = st.button("Analyze")
