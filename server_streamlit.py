@@ -700,9 +700,7 @@ if button and (url or uploaded_file):
                 image.save(thumbnail_path)
                 thumbnail_image = thumbnail_path
                 
-                clip.reader.close()  # Close reader to release file handle
-                if clip.audio:
-                    clip.audio.reader.close_proc()
+                clip.close()
             except Exception as e:
                 st.error(f"Error processing video file: {e}")
                 duration = 0
