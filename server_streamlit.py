@@ -15,7 +15,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import PatternFill
 import pandas as pd
 from urllib.parse import urlparse, parse_qs
-
+import tiktoken
 # Timer
 if 't' not in st.session_state:
     st.session_state.t = 2  # Default value
@@ -329,6 +329,12 @@ def classify_content(rp_percentage, rc_percentage):
     else:
         return "green"
 
+# Helper function to count tokens using tiktoken
+def count_tokens(text: str, model: str = "gpt-4") -> int:
+    encoding = tiktoken.encoding_for_model(model)
+    tokens = encoding.encode(text)
+    return len(tokens)
+
 # Function to get analysis from OpenAI GPT-4 model
 def get_analysis_with_api_key(transcript):
     openai.api_key = st.secrets["default"]["OPENAI_API_KEY"]
@@ -371,9 +377,19 @@ def get_analysis_with_api_key(transcript):
     Transcript: {transcript}
     """
     
+    # Count tokens using GPT-4 encoding as a baseline
+    # token_count = count_tokens(prompt, model="gpt-4")
+    # if token_count > 8000:
+    #     chosen_model = "gpt-3.5-turbo"
+    #     print(f"Token count ({token_count}) exceeded 8000; switching model to {chosen_model}.")
+    # else:
+    #     chosen_model = "gpt-4"
+    #     print(f"Token count ({token_count}) within limit; using model {chosen_model}.")
+
+    
     # Making API call to GPT-4 using OpenAI ChatCompletion API
     response = openai.ChatCompletion.create(
-        model="gpt-4",  # Use GPT-4 model
+        model="gpt-3.5-turbo",  # Use GPT-4 model
         messages=[
             {"role": "system", "content": "You are an assistant that analyzes transcripts for radical content."},
             {"role": "user", "content": prompt}
