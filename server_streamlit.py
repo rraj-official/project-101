@@ -302,14 +302,14 @@ def get_analysis_with_api_key(transcript):
     """
     
     # Count tokens using GPT-4 encoding as a baseline
-    token_count = count_tokens(prompt, model="gpt-4")
-    if token_count > 8000:
-        chosen_model = "gpt-3.5-turbo"
-        print(f"Token count ({token_count}) exceeded 8000; switching model to {chosen_model}.")
-    else:
-        chosen_model = "gpt-4"
-        print(f"Token count ({token_count}) within limit; using model {chosen_model}.")
-
+    # token_count = count_tokens(prompt, model="gpt-4")
+    # if token_count > 8000:
+    #     chosen_model = "gpt-3.5-turbo"
+    #     print(f"Token count ({token_count}) exceeded 8000; switching model to {chosen_model}.")
+    # else:
+    #     chosen_model = "gpt-4"
+    #     print(f"Token count ({token_count}) within limit; using model {chosen_model}.")
+    chosen_model = "gpt-3.5-turbo"
     response = openai.ChatCompletion.create(
         model=chosen_model,
         messages=[
