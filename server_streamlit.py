@@ -378,18 +378,18 @@ def get_analysis_with_api_key(transcript):
     """
     
     # Count tokens using GPT-4 encoding as a baseline
-    # token_count = count_tokens(prompt, model="gpt-4")
-    # if token_count > 8000:
-    #     chosen_model = "gpt-3.5-turbo"
-    #     print(f"Token count ({token_count}) exceeded 8000; switching model to {chosen_model}.")
-    # else:
-    #     chosen_model = "gpt-4"
-    #     print(f"Token count ({token_count}) within limit; using model {chosen_model}.")
+    token_count = count_tokens(prompt, model="gpt-4")
+    if token_count > 8000:
+        chosen_model = "gpt-3.5-turbo"
+        print(f"Token count ({token_count}) exceeded 8000; switching model to {chosen_model}.")
+    else:
+        chosen_model = "gpt-4"
+        print(f"Token count ({token_count}) within limit; using model {chosen_model}.")
 
     
-    # Making API call to GPT-4 using OpenAI ChatCompletion API
+    # Making API call to chosen model using OpenAI ChatCompletion API and Dynamic Model Selection
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",  # Use GPT-4 model
+        model=chosen_model,  # Use model based on dynamic model selection
         messages=[
             {"role": "system", "content": "You are an assistant that analyzes transcripts for radical content."},
             {"role": "user", "content": prompt}
@@ -397,12 +397,18 @@ def get_analysis_with_api_key(transcript):
         max_tokens=1000
     )
     # print(response)
-    st.write(response)
+    # st.write(response)
     result = response['choices'][0]['message']['content']
 
     # Split the response into two parts based on the "[Separator]" line
     try:
-        final_assessment, analysis = result.split("[Separator]", 1)
+        if "[Separator]" in result:
+            final_assessment, analysis = result.split("[Separator]", 1)
+        elif "---" in result:
+            final_assessment, analysis = result.split("---", 1)
+        else:
+            st.error("Error analyzing video: separator not found in the output.")
+            final_assessment, analysis = "", ""
     except ValueError:
         st.error("Error analyzing video: Unexpected response from model.")
         final_assessment, analysis = "", ""
