@@ -397,14 +397,14 @@ def get_analysis_with_api_key(transcript):
         max_tokens=1000
     )
     # print(response)
-    st.write(response)
+    # st.write(response)
     result = response['choices'][0]['message']['content']
 
     # Split the response into two parts based on the "[Separator]" line
     try:
         final_assessment, analysis = result.split("[Separator]", 1)
     except ValueError:
-        st.error("Error analyzing video")
+        st.error("Error analyzing video: Unexpected response from model.")
         final_assessment, analysis = "", ""
     
     # Global variables to store final assessment and analysis
