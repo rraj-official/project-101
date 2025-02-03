@@ -9,3 +9,4 @@ ffmpeg-python
 pandas
 openpyxl
 openai==0.28
+tiktoken
