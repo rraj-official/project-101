@@ -396,8 +396,8 @@ def get_analysis_with_api_key(transcript):
         ],
         max_tokens=1000
     )
-    print(response)
-    # st.write(response)
+    # print(response)
+    st.write(response)
     result = response['choices'][0]['message']['content']
 
     # Split the response into two parts based on the "[Separator]" line
