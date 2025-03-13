@@ -669,7 +669,44 @@ if button and (url or uploaded_file):
                 transcribe_youtube_video(video_url)  # Ensure this function is defined earlier
                 
                 # Get the analysis with an API key
-                transcript = transcripted_output  # Ensure this global variable is populated
+                # transcript = transcripted_output  # Ensure this global variable is populated
+                transcript = """
+                
+                On April 2, 2023, a media group linked to the Islamic State Khorasan Province (ISKP) released Issue 24 of the "Voice of Khurasan" English-language magazine.
+                The magazine included a lengthy article, titled "A Message From The Heart To Our Muslim Brothers in Ukraine," urging Muslims fighting in the war in Ukraine to join ISIS's Caucasus Province, instead of fighting alongside forces commanded by infidels.
+                Authored by "a sincere Mujahid from the European Dar Al-Kufr [land of disbelief]," the article also expressed its condemnation of the Russian Muslim officials who are siding with Russia, and described the Chechen Muslims who are fighting alongside Ukrainian forces as "misguided."
+                Highlighting the jihadi record of Chechen Muslims in the past and their contribution to the jihad in Syria, the article called on them and Muslims from other ethnicities to devote their efforts and resources to supporting ISIS, claiming that fighting for a national identity is unislamic.
+                The article reflects the growing interest of jihadis in exploiting the ongoing war in Ukraine. MEMRI JTTM published a comprehensive report highlighting jihadis' online discussion of the Russo-Ukrainian war on the first anniversary of the Russian invasion.
+                Glorifying ISIS European Fighters 
+                The article's cover image features the perpetrators of ISIS-claimed November 2015 suicide bombings near the Stade de France during the Germany-France soccer game. The image consists of photos of nine ISIS operatives: Abu Umar Al-Baljiki, Abul Qa'Qa' Al-Baljiki, Abu Mujahid Al-Baljiki (Belgium), Abu Fu'ad Al-Feransi, Abu Rayyan Al-Feransi, Abu Qital Al-Feransi, Dhul-Qarnayan Al-Feransi (French), Ukasah Al-Iraqi, and Ali Al-Iraqi (Iraq).
+                Don't Fight With Tyrants
+                Criticizing Muslims who are fighting alongside the Russian or Ukrainian forces, the article warned that in both cases, they have made the wrong choice, saying that Muslims who do so are defending tyrant rulers.
+                "This is certainly the case of those Muslims who joined the ranks of the Russian and Ukrainian kuffar [unbeliever] armies, which keep fighting each other over minor worldly issues of pride, territory, and resources, and while joining such ranks of the infidels, they did not pay attention to the nullifier of Islam that they have committed for fighting for sake of Taghut [tyrants]."
+                Elaborating further, the article stated that Muslims should not fight or defend leaders from other faiths or ideologies such as the "Jewish" President Volodymyr Zelensky who is fighting Russia "on behalf of the West" or the "ultra-Christian" Russian President Vladimir Putin.
+                "Thousands of born Muslim Chechens are fighting under the command of an ultra-Christian nationalist, imperialist, and former Marxist-Communist like Vladimir Putin, while born Muslim Tatars are executing the orders of an ultra-Jew Israeli Zionist supremacist, a comedian by the name of Volodymyr Zelensky, who is fighting on behalf of Christian infidels."
+                Muslims Are Used As Cannon Fodder
+                The article pointed out that Arab and Central Asian Muslims are being used by both Russia and Ukraine as cannon fodder: "In addition, small groups of Muslim Chechens are engaged with the Ukrainian army, along with Arab and Central Asian Muslims, although the latter are being exploited as cannon fodder also by the Russian kuffar," the text of the article declared.
+                The History Of Jihadi Chechen Muslims
+                Reminding Chechen Muslims of their jihadi record which led to "the defeat of the post-Soviet Russian nationalism and imperialism" and their contribution to the "Islamic resistance in Afghanistan," the article encouraged them to follow the footsteps of the "ultimate Lions of the Tawheed [Islamic monotheism] such as Umar Ibn Al-Khattab and Shamil Basayev, who freed Chechnya from the occupation of the Russian kuffar and established the rule of the shari'ah in the liberated territory."
+                Hypocrite Muslims
+                Warning against Muslim clerics who serve the political agenda of tyrants, the article cited Achmat (Akhmad) Kadyrov, a Chechen who served as Chief Mufti of the Chechen Republic of Ichkeria in the 1990s, during and after the First Chechen War.
+                "Achmat Kadyrov, who did not hesitate to reopen the gates of Grozny and of the whole Chechnya to the Russian kuffar. As Putin's puppet, he was rewarded with the throne of a new Taghut regime subservient to Moscow, which upheld Islamic features only as a façade to mislead Muslim Chechens and keep them under control."
+                It also condemned the Chechen Muslim politician Ramzan Kadyrov who currently serves as the Head of the Chechen Republic, saying that Chechen Muslim should easily recognize his deceptiveness.
+                Fighting In Syria With ISIS
+                Discussing the hijra ("migration") of Chechen and North Caucasian Muslims to Syria to perform jihad, the article praised those who joined ISIS, crediting their discipline, military skills, and resoluteness in adhering to the rules of fighting, adding that some of them occupied leadership positions.
+                It further noted that some even managed to convince other "brothers and sisters" to make the hijra to Syria. 
+                While acknowledging that ISIS in Syria suffered a "setback" in reference to its collapse in 2019, the article blamed the setback on "the fragmentation" of Islamic nation which did not rally behind the Islamic caliphate.
+                However, according to the text of the article, ISIS has since overcome this setback. The article noted that the Caliph had remained in Syria "with his mujahidin, widows, orphans, and children, laying the groundwork for the relaunch of the Jihad."
+                The text stated that at the same time, the Islamic caliphate expanded its presence worldwide, raising the monotheism banner everywhere, including the Muslim lands in the North Caucasus. The author pointed out that slain ISIS leader Abu Bakr Al-Baghdadi established the Caucasus Wilyah ("Province") before his death.
+                "Before returning to his Lord as a martyr, the Khalifah Abu Bakr Al-Baghdadi (may Allah accept him) established the 'Caucasus Wilayah,' which reunited within the Islamic Khilafah [Caliphate] all the mujahidin hailing from Chechnya and the broader region. The 'Caucasus Wilayah' was also joined by muhajirun [immigrants] from the Muslim lands in Central Asia, who emigrated to support their brothers and sisters in the Jihad fi Sabilillah [for the sake of Allah] officially declared by Abu Bakr Al-Baghdadi (may Allah accept him) to bring down the Tawagheet (tyrant) regimes locally and in Russia."
+                Join ISIS Caucasus Wilayah
+                Inviting Muslims oppressed by Russia to join the ranks of ISIS, the article portrayed the Caucasus Wilayah as an opportunity for them to fight the Putin regime, stressing that since its establishment 'Caucasus Wilayah' has been a thorn in the side of Putin and his allies.
+                Addressing Muslims who are fighting alongside the Ukrainian forces against Russia, the article called on them to also join the ISIS ranks and be part of the ISIS Caucasus Province.
+                "Equally misguided are the Chechens who are fighting the Russian kuffar at the service of the Ukrainian ones. If they really want to give Putin the retribution he deserves, they have only one way to go, and this leads to the 'Caucasus Wilayah' of the Islamic State. This applies also to the Tatar Muslims, who seem to never learn from their historical mistakes."
+                Addressing reports about the establishment of a "Muslim battalion" inside the Ukrainian forces, the article emphasized that joining such a battalion within the armed forces which "will be replete with neo-Nazis and headed by a Jew president" contradicts the Islamic rulings. It pointed out that fighting under a nationalist banner, i.e., Ukrainian flag, instead of lifting the banner of the Islamic Caliphate, is unislamic.
+
+                """
+                
                 final_assess, analysis = get_analysis_with_api_key(transcript)
                 
                 # Display the analysis in Streamlit
