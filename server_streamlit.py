@@ -162,7 +162,7 @@ def extract_audio_from_video(video_path, output_audio_path='audio_compressed.wav
 
 # Function to split the audio into chunks
 def split_audio_to_chunks(audio_path, chunk_duration_ms=60000):
-    sound = AudioSegment.from_wav(audio_path)
+    sound = AudioSegment.from_file(audio_path)
     audio_chunks = []
     for i in range(0, len(sound), chunk_duration_ms):
         chunk = sound[i:i + chunk_duration_ms]
