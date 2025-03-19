@@ -109,7 +109,7 @@ with open("gcloud_temp_credentials.json", "w") as f:
 # Set the environment variable to point to the temporary JSON file
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcloud_temp_credentials.json"
 
-# Global variables to store the final transcribed output
+# Global variable to store the final transcribed output
 transcripted_output = ""
 
 # Function to clean up old video and audio files if they exist
@@ -144,17 +144,17 @@ def extract_audio_from_video(video_path, output_audio_path='audio_compressed.wav
     video = VideoFileClip(video_path)
     audio_path_temp = "temp_audio.wav"
     
-    # Extract audio using moviepy
+    # Extract audio using moviepy (44.1 kHz by default below)
     audio = video.audio
-    audio.write_audiofile(audio_path_temp, codec='pcm_s16le', fps=44100)  # 44100 Hz
+    audio.write_audiofile(audio_path_temp, codec='pcm_s16le', fps=44100)
     
-    # Convert audio to mono and compress using pydub
+    # Re-sample to 16 kHz, mono
     sound = AudioSegment.from_file(audio_path_temp)
-    sound = sound.set_channels(1)  # Convert to mono
-    sound = sound.set_frame_rate(sample_rate)  # Set sample rate to 16000 Hz
+    sound = sound.set_channels(1)
+    sound = sound.set_frame_rate(sample_rate)
     sound.export(output_audio_path, format="wav", bitrate=bitrate)
     
-    print(f"Compressed audio extracted and saved as {output_audio_path}.")
+    print(f"Compressed audio extracted at {sample_rate} Hz, saved as {output_audio_path}.")
     # Clean up temporary audio file
     os.remove(audio_path_temp)
     
@@ -162,6 +162,7 @@ def extract_audio_from_video(video_path, output_audio_path='audio_compressed.wav
 
 # Function to split the audio into chunks
 def split_audio_to_chunks(audio_path, chunk_duration_ms=60000):
+    # Use generic from_file, so it can handle WAV/MP3/etc.
     sound = AudioSegment.from_file(audio_path)
     audio_chunks = []
     for i in range(0, len(sound), chunk_duration_ms):
@@ -185,6 +186,8 @@ def upload_to_gcs(bucket_name, source_file_name, destination_blob_name):
 def transcribe_audio_gcs(gcs_uri, language_code='en-US'):
     client = speech.SpeechClient()
     audio = speech.RecognitionAudio(uri=gcs_uri)
+    
+    # Set your config to match 16 kHz
     config = speech.RecognitionConfig(
         encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
         sample_rate_hertz=16000,
@@ -214,7 +217,7 @@ def transcribe_audio_chunks_in_parallel(bucket_name, chunk_paths, language_code=
         transcriptions = [future.result() for future in futures]
     return " ".join(transcriptions)
 
-# If we take a local video file, transcribe here
+# 1) Local video: re-sample extracted audio to 16k
 def transcribe_local_video(local_video_path):
     global transcripted_output
     cleanup_old_files()
@@ -233,25 +236,38 @@ def transcribe_local_video(local_video_path):
     for chunk_path in audio_chunks:
         os.remove(chunk_path)
 
-# If we take a local audio file, transcribe here (skips extracting audio from video)
+# 2) Local audio: re-sample to 16k before splitting
 def transcribe_local_audio(local_audio_path):
     global transcripted_output
     cleanup_old_files()
     
-    # Directly split the provided audio
-    audio_chunks = split_audio_to_chunks(local_audio_path, chunk_duration_ms=60000)
+    # First re-sample the user’s audio to 16 kHz WAV
+    resampled_path = "resampled_audio.wav"
+    sound = AudioSegment.from_file(local_audio_path)
+    sound = sound.set_channels(1)
+    sound = sound.set_frame_rate(16000)
+    sound.export(resampled_path, format="wav")
+
+    # Now split the 16 kHz WAV into 60-second chunks
+    audio_chunks = split_audio_to_chunks(resampled_path, chunk_duration_ms=60000)
     
     bucket_name = 'hackathon_police'
     transcript_hindi = transcribe_audio_chunks_in_parallel(bucket_name, audio_chunks, language_code='hi-IN')
     st.session_state.t = 1
     transcript_english = transcribe_audio_chunks_in_parallel(bucket_name, audio_chunks, language_code='en-US')
     
-    transcripted_output = f"Hindi Transcription:\n{transcript_hindi}\n\nEnglish Transcription:\n{transcript_english}"
+    transcripted_output = (
+        f"Hindi Transcription:\n{transcript_hindi}"
+        f"\n\nEnglish Transcription:\n{transcript_english}"
+    )
     
+    # Cleanup
     for chunk_path in audio_chunks:
         os.remove(chunk_path)
+    if os.path.exists(resampled_path):
+        os.remove(resampled_path)
 
-# Handle the entire workflow for youtube/x.com
+# 3) YouTube/X video flow: same 16k approach
 def transcribe_youtube_video(video_url):
     global transcripted_output
     cleanup_old_files()
@@ -259,7 +275,7 @@ def transcribe_youtube_video(video_url):
     # 1. Download
     video_path = download_youtube_video(video_url)
     
-    # 2. Extract and split audio
+    # 2. Extract and split audio (16 kHz)
     audio_path = extract_audio_from_video(video_path, sample_rate=16000, bitrate='32k')
     audio_chunks = split_audio_to_chunks(audio_path, chunk_duration_ms=60000)
     
@@ -370,7 +386,6 @@ def extract_percentages(analysis_text):
     rp_line = [line for line in lines if "Radical Probability" in line]
     rc_line = [line for line in lines if "Radical Content" in line]
 
-    # Helper
     def convert_to_percentage(text):
         text = text.lower()
         if "low" in text:
@@ -407,7 +422,7 @@ def extract_analysis_parts(analysis_text):
     
     return lexical, emotion, speech_patterns, religious_rhetoric, commands
 
-# Append to Excel (optional usage if needed)
+# Append to Excel (optional usage)
 def append_to_csv(transcript, analysis_text, rp_percentage, rc_percentage):
     file_path = "analysis_results.xlsx"
     if not os.path.exists(file_path):
@@ -569,7 +584,9 @@ uploaded_file = st.file_uploader(
 st.markdown('<div style="text-align: center;"> <p>OR</p></div>', unsafe_allow_html=True)
 
 # Direct Transcript Text
-transcript_text = st.text_area("Enter or paste transcript text (optional). If provided, analysis will skip any audio/video steps.")
+transcript_text = st.text_area(
+    "Enter or paste transcript text (optional). If provided, analysis will skip any audio/video steps."
+)
 
 analyze_button = st.button("Analyze")
 
@@ -585,12 +602,17 @@ if analyze_button:
         # Display results
         final_assess_html = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
         analysis_html = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
-        st.markdown(f"<div class='assess' style='white-space: pre-wrap;'>{final_assess_html}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='report' style='white-space: pre-wrap;'>{analysis_html}</div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div class='assess' style='white-space: pre-wrap;'>{final_assess_html}</div>",
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            f"<div class='report' style='white-space: pre-wrap;'>{analysis_html}</div>",
+            unsafe_allow_html=True
+        )
         
         rp_percentage, rc_percentage = extract_percentages(analysis)
         # append_to_csv(transcripted_output, analysis, rp_percentage, rc_percentage)  # optional
-        # st.dataframe(pd.read_excel('analysis_results.xlsx').tail())
 
     # 2) Otherwise, check if a URL was provided
     elif url:
@@ -619,12 +641,17 @@ if analyze_button:
                 analysis_html = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
                 
                 with col2:
-                    st.markdown(f"<div class='assess' style='white-space: pre-wrap;'>{final_assess_html}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='report' style='white-space: pre-wrap;'>{analysis_html}</div>", unsafe_allow_html=True)
+                    st.markdown(
+                        f"<div class='assess' style='white-space: pre-wrap;'>{final_assess_html}</div>",
+                        unsafe_allow_html=True
+                    )
+                st.markdown(
+                    f"<div class='report' style='white-space: pre-wrap;'>{analysis_html}</div>",
+                    unsafe_allow_html=True
+                )
                 
                 rp_percentage, rc_percentage = extract_percentages(analysis)
                 # append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
-                # st.dataframe(pd.read_excel('analysis_results.xlsx').tail())
 
             else:
                 st.error("Unable to fetch video details. Please check the URL.")
@@ -645,7 +672,6 @@ if analyze_button:
         if file_extension in video_formats:
             # Handle local video
             with st.spinner(f"Processing local video file... Estimated time: {st.session_state.t} mins"):
-                # Get some details
                 try:
                     clip = VideoFileClip(temp_path)
                     duration = int(clip.duration)
@@ -681,8 +707,14 @@ if analyze_button:
                 analysis_html = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
                 
                 with col2:
-                    st.markdown(f"<div class='assess' style='white-space: pre-wrap;'>{final_assess_html}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='report' style='white-space: pre-wrap;'>{analysis_html}</div>", unsafe_allow_html=True)
+                    st.markdown(
+                        f"<div class='assess' style='white-space: pre-wrap;'>{final_assess_html}</div>",
+                        unsafe_allow_html=True
+                    )
+                st.markdown(
+                    f"<div class='report' style='white-space: pre-wrap;'>{analysis_html}</div>",
+                    unsafe_allow_html=True
+                )
                 
                 rp_percentage, rc_percentage = extract_percentages(analysis)
                 # append_to_csv(transcripted_output, analysis, rp_percentage, rc_percentage)
@@ -692,9 +724,8 @@ if analyze_button:
                     os.remove(thumb_path)
 
         elif file_extension in audio_formats:
-            # Handle local audio: skip video extraction
+            # Handle local audio: skip video extraction, but re-sample to 16k
             with st.spinner(f"Processing local audio file... Estimated time: {st.session_state.t} mins"):
-                # There's no built-in "thumbnail" concept for audio
                 with col1:
                     st.image("https://via.placeholder.com/150", caption="Audio File", use_container_width=True)
                 with col2:
@@ -710,8 +741,14 @@ if analyze_button:
                 analysis_html = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
                 
                 with col2:
-                    st.markdown(f"<div class='assess' style='white-space: pre-wrap;'>{final_assess_html}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='report' style='white-space: pre-wrap;'>{analysis_html}</div>", unsafe_allow_html=True)
+                    st.markdown(
+                        f"<div class='assess' style='white-space: pre-wrap;'>{final_assess_html}</div>",
+                        unsafe_allow_html=True
+                    )
+                st.markdown(
+                    f"<div class='report' style='white-space: pre-wrap;'>{analysis_html}</div>",
+                    unsafe_allow_html=True
+                )
                 
                 rp_percentage, rc_percentage = extract_percentages(analysis)
                 # append_to_csv(transcripted_output, analysis, rp_percentage, rc_percentage)
