@@ -149,7 +149,7 @@ def extract_audio_from_video(video_path, output_audio_path='audio_compressed.wav
     audio.write_audiofile(audio_path_temp, codec='pcm_s16le', fps=44100)  # 44100 Hz
     
     # Convert audio to mono and compress using pydub
-    sound = AudioSegment.from_wav(audio_path_temp)
+    sound = AudioSegment.from_file(audio_path_temp)
     sound = sound.set_channels(1)  # Convert to mono
     sound = sound.set_frame_rate(sample_rate)  # Set sample rate to 16000 Hz
     sound.export(output_audio_path, format="wav", bitrate=bitrate)
