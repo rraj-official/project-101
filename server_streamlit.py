@@ -16,6 +16,8 @@ from openpyxl.styles import PatternFill
 import pandas as pd
 from urllib.parse import urlparse, parse_qs
 import tiktoken
+from PIL import Image
+
 # Timer
 if 't' not in st.session_state:
     st.session_state.t = 2  # Default value
@@ -46,42 +48,7 @@ def is_xcom_url(url):
         st.error(f"Error parsing URL: {e}")
         return False
 
-# Function to get YouTube video details using pytube with enhanced URL handling
-# def fetch_youtube_details(video_url):
-#     try:
-#         parsed_url = urlparse(video_url)
-#         domain = parsed_url.netloc.lower()
-
-#         if domain == "youtu.be":
-#             # Shortened URL format
-#             video_id = parsed_url.path.lstrip('/')
-#         elif "youtube.com" in domain:
-#             if parsed_url.path == "/watch":
-#                 # Standard watch URL
-#                 query_params = parse_qs(parsed_url.query)
-#                 video_id = query_params.get("v", [None])[0]
-#             elif parsed_url.path.startswith("/embed/") or parsed_url.path.startswith("/v/"):
-#                 # Embed or /v/ URL format
-#                 video_id = parsed_url.path.split('/')[2]
-#             else:
-#                 video_id = None
-#         else:
-#             video_id = None
-
-#         if not video_id:
-#             st.error("Could not extract video ID from the provided YouTube URL.")
-#             return None, None, None
-
-#         yt = YouTube(f"https://www.youtube.com/watch?v={video_id}")
-#         video_title = yt.title
-#         thumbnail_url = yt.thumbnail_url
-#         duration = yt.length  # Duration in seconds
-#         return video_title, thumbnail_url, duration
-
-#     except Exception as e:
-#         st.error(f"Error fetching YouTube video details: {e}")
-#         return None, None, None
-    
+# Function to fetch YouTube video details using yt_dlp
 def fetch_youtube_details(video_url):
     try:
         ydl_opts = {
@@ -96,13 +63,12 @@ def fetch_youtube_details(video_url):
         video_title = info.get('title', 'No Title')
         thumbnail_url = info.get('thumbnail', '')
         duration = info.get('duration', 0)  # Duration in seconds
-        
         return video_title, thumbnail_url, duration
     except Exception as e:
         st.error(f"Error fetching YouTube video details: {e}")
         return None, None, None
 
-# Function to get X.com (Twitter) video details using yt_dlp
+# Function to fetch X.com (Twitter) video details using yt_dlp
 def fetch_x_details(video_url):
     try:
         ydl_opts = {
@@ -117,7 +83,6 @@ def fetch_x_details(video_url):
         video_title = info.get('title', 'No Title')
         thumbnail_url = info.get('thumbnail', '')
         duration = info.get('duration', 0)  # Duration in seconds
-        
         return video_title, thumbnail_url, duration
     except Exception as e:
         st.error(f"Error fetching X.com video details: {e}")
@@ -135,8 +100,6 @@ def fetch_video_details(video_url):
 
 # Access the credentials from Streamlit secrets
 google_cloud_credentials = st.secrets["google_cloud"]
-
-# Convert the Streamlit AttrDict to a regular dictionary
 google_cloud_credentials_dict = dict(google_cloud_credentials)
 
 # Write the credentials to a temporary JSON file
@@ -146,11 +109,8 @@ with open("gcloud_temp_credentials.json", "w") as f:
 # Set the environment variable to point to the temporary JSON file
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcloud_temp_credentials.json"
 
-
 # Global variables to store the final transcribed output
 transcripted_output = ""
-transcripted_english_output = ""
-transcripted_hindi_output = ""
 
 # Function to clean up old video and audio files if they exist
 def cleanup_old_files():
@@ -173,32 +133,28 @@ def download_youtube_video(video_url, output_video_path='video.mp4'):
         'format': 'best',
         'outtmpl': output_video_path,
     }
-
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([video_url])
     
     print(f"Video downloaded and saved as {output_video_path}")
     return output_video_path
 
-# Function to extract audio using moviepy and convert to mono with pydub, compressing the audio
+# Function to extract audio from video using moviepy + pydub
 def extract_audio_from_video(video_path, output_audio_path='audio_compressed.wav', sample_rate=16000, bitrate='32k'):
     video = VideoFileClip(video_path)
     audio_path_temp = "temp_audio.wav"
     
     # Extract audio using moviepy
     audio = video.audio
-    audio.write_audiofile(audio_path_temp, codec='pcm_s16le', fps=44100)  # Extract audio at 44100 Hz
+    audio.write_audiofile(audio_path_temp, codec='pcm_s16le', fps=44100)  # 44100 Hz
     
     # Convert audio to mono and compress using pydub
     sound = AudioSegment.from_wav(audio_path_temp)
     sound = sound.set_channels(1)  # Convert to mono
     sound = sound.set_frame_rate(sample_rate)  # Set sample rate to 16000 Hz
-    
-    # Export compressed audio with lower bitrate
     sound.export(output_audio_path, format="wav", bitrate=bitrate)
     
-    print(f"Compressed audio extracted and saved as {output_audio_path} in mono with {sample_rate} Hz sample rate and {bitrate} bitrate.")
-    
+    print(f"Compressed audio extracted and saved as {output_audio_path}.")
     # Clean up temporary audio file
     os.remove(audio_path_temp)
     
@@ -222,22 +178,19 @@ def upload_to_gcs(bucket_name, source_file_name, destination_blob_name):
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(destination_blob_name)
-
     blob.upload_from_filename(source_file_name)
     print(f"File {source_file_name} uploaded to {destination_blob_name}.")
 
 # Function to transcribe audio from Google Cloud Storage
 def transcribe_audio_gcs(gcs_uri, language_code='en-US'):
     client = speech.SpeechClient()
-
     audio = speech.RecognitionAudio(uri=gcs_uri)
     config = speech.RecognitionConfig(
         encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-        sample_rate_hertz=16000,  # Set sample rate to match audio
+        sample_rate_hertz=16000,
         language_code=language_code,
         enable_automatic_punctuation=True,
     )
-
     operation = client.long_running_recognize(config=config, audio=audio)
     response = operation.result(timeout=1500)
 
@@ -249,7 +202,7 @@ def transcribe_audio_gcs(gcs_uri, language_code='en-US'):
     print(f"Transcription complete for language {language_code}.")
     return full_transcript
 
-# Function to transcribe audio chunks in parallel
+# Function to transcribe audio chunks in parallel (Hindi + English)
 def transcribe_audio_chunks_in_parallel(bucket_name, chunk_paths, language_code='en-US'):
     with ThreadPoolExecutor() as executor:
         futures = []
@@ -258,69 +211,70 @@ def transcribe_audio_chunks_in_parallel(bucket_name, chunk_paths, language_code=
             upload_to_gcs(bucket_name, chunk_path, destination_blob_name)
             gcs_uri = f"gs://{bucket_name}/{destination_blob_name}"
             futures.append(executor.submit(transcribe_audio_gcs, gcs_uri, language_code))
-
         transcriptions = [future.result() for future in futures]
-    
-    return " ".join(transcriptions)  # Concatenate all chunk transcriptions
+    return " ".join(transcriptions)
 
-# New function to transcribe a local video file
+# If we take a local video file, transcribe here
 def transcribe_local_video(local_video_path):
     global transcripted_output
     cleanup_old_files()
     
-    # Use the provided local video path directly
-    video_path = local_video_path
-    
     # Extract and split audio into chunks
-    audio_path = extract_audio_from_video(video_path, sample_rate=16000, bitrate='32k')
-    audio_chunks = split_audio_to_chunks(audio_path, chunk_duration_ms=60000)  # Split into 60-second chunks
+    audio_path = extract_audio_from_video(local_video_path, sample_rate=16000, bitrate='32k')
+    audio_chunks = split_audio_to_chunks(audio_path, chunk_duration_ms=60000)
     
-    # Transcribe audio chunks in parallel for both Hindi and English
+    bucket_name = 'hackathon_police'  # your GCS bucket
+    transcript_hindi = transcribe_audio_chunks_in_parallel(bucket_name, audio_chunks, language_code='hi-IN')
+    st.session_state.t = 1
+    transcript_english = transcribe_audio_chunks_in_parallel(bucket_name, audio_chunks, language_code='en-US')
+    
+    transcripted_output = f"Hindi Transcription:\n{transcript_hindi}\n\nEnglish Transcription:\n{transcript_english}"
+    
+    for chunk_path in audio_chunks:
+        os.remove(chunk_path)
+
+# If we take a local audio file, transcribe here (skips extracting audio from video)
+def transcribe_local_audio(local_audio_path):
+    global transcripted_output
+    cleanup_old_files()
+    
+    # Directly split the provided audio
+    audio_chunks = split_audio_to_chunks(local_audio_path, chunk_duration_ms=60000)
+    
     bucket_name = 'hackathon_police'
     transcript_hindi = transcribe_audio_chunks_in_parallel(bucket_name, audio_chunks, language_code='hi-IN')
     st.session_state.t = 1
     transcript_english = transcribe_audio_chunks_in_parallel(bucket_name, audio_chunks, language_code='en-US')
-
-    # Concatenate transcripts
+    
     transcripted_output = f"Hindi Transcription:\n{transcript_hindi}\n\nEnglish Transcription:\n{transcript_english}"
     
-    # Clean up chunk files
     for chunk_path in audio_chunks:
         os.remove(chunk_path)
 
-# Updated function to handle the entire workflow
+# Handle the entire workflow for youtube/x.com
 def transcribe_youtube_video(video_url):
-    global transcripted_output  # Declare the global variable
-    # Step 1: Clean up old video and audio files if they exist
+    global transcripted_output
     cleanup_old_files()
     
-    # Step 2: Download and extract video
+    # 1. Download
     video_path = download_youtube_video(video_url)
     
-    # Step 3: Extract and split audio into chunks
+    # 2. Extract and split audio
     audio_path = extract_audio_from_video(video_path, sample_rate=16000, bitrate='32k')
-    audio_chunks = split_audio_to_chunks(audio_path, chunk_duration_ms=60000)  # Split into 60-second chunks
+    audio_chunks = split_audio_to_chunks(audio_path, chunk_duration_ms=60000)
     
-    # Step 4: Transcribe audio chunks in parallel (for both Hindi and English)
-    bucket_name = 'hackathon_police'  # Replace with your Google Cloud Storage bucket name
-
+    # 3. Transcribe
+    bucket_name = 'hackathon_police'
     transcript_hindi = transcribe_audio_chunks_in_parallel(bucket_name, audio_chunks, language_code='hi-IN')
     st.session_state.t = 1
     transcript_english = transcribe_audio_chunks_in_parallel(bucket_name, audio_chunks, language_code='en-US')
-
-    transcripted_english_output = transcript_english
-    transcripted_hindi_output = transcript_hindi
     
-    # Concatenate the Hindi and English transcripts into the global variable
     transcripted_output = f"Hindi Transcription:\n{transcript_hindi}\n\nEnglish Transcription:\n{transcript_english}"
     
-    # Clean up local files (delete video, audio, and chunks after transcription is done)
-    # os.remove(video_path)
-    # os.remove(audio_path)
     for chunk_path in audio_chunks:
         os.remove(chunk_path)
 
-# Function to classify radical content based on percentage
+# Classification function
 def classify_content(rp_percentage, rc_percentage):
     if rp_percentage >= 70 or rc_percentage >= 70:
         return "red"
@@ -329,13 +283,13 @@ def classify_content(rp_percentage, rc_percentage):
     else:
         return "green"
 
-# Helper function to count tokens using tiktoken
+# Helper to count tokens (for dynamic model selection)
 def count_tokens(text: str, model: str = "gpt-4") -> int:
     encoding = tiktoken.encoding_for_model(model)
     tokens = encoding.encode(text)
     return len(tokens)
 
-# Function to get analysis from OpenAI GPT-4 model
+# GPT Analysis
 def get_analysis_with_api_key(transcript):
     openai.api_key = st.secrets["default"]["OPENAI_API_KEY"]
     
@@ -345,9 +299,9 @@ def get_analysis_with_api_key(transcript):
     ### Parameters to analyze:
     1. *Lexical Analysis*: Identify radical or religious terminology in both Hindi and English, including exclusionary language (e.g., "us vs. them"), calls to action, or divisive rhetoric.
     2. *Emotion and Sentiment in Speech*: Analyze the tone and sentiment in both languages. Look for negative emotions like anger or fear, which may incite followers or condemn opposing groups.
-    3. *Speech Patterns and Intensity*: Identify the use of high volume, repetition, or urgency in either language to emphasize points, which are typical in radical speech.
-    4. *Use of Religious Rhetoric*: Look for quotes from religious texts, apocalyptic themes, or divine rewards and punishments to justify actions, considering the context in both Hindi and English.
-    5. *Frequency of Commands and Directives*: Examine the frequency of explicit calls to action, whether physical or ideological, in both languages.
+    3. *Speech Patterns and Intensity*: Identify the use of high volume, repetition, or urgency in either language to emphasize points, typical in radical speech.
+    4. *Use of Religious Rhetoric*: Look for quotes from religious texts, apocalyptic themes, or divine rewards/punishments, considering the context in both Hindi and English.
+    5. *Frequency of Commands and Directives*: Examine the frequency of explicit calls to action (physical or ideological), in both languages.
 
     ### Standard Output Format:
     Return the analysis in this structured format:
@@ -376,88 +330,75 @@ def get_analysis_with_api_key(transcript):
 
     Transcript: {transcript}
     """
-    
-    # Count tokens using GPT-4 encoding as a baseline
+
     token_count = count_tokens(prompt, model="gpt-4")
     if token_count > 8000:
         chosen_model = "gpt-3.5-turbo"
-        print(f"Token count ({token_count}) exceeded 8000; switching model to {chosen_model}.")
     else:
         chosen_model = "gpt-4"
-        print(f"Token count ({token_count}) within limit; using model {chosen_model}.")
 
-    
-    # Making API call to chosen model using OpenAI ChatCompletion API and Dynamic Model Selection
     response = openai.ChatCompletion.create(
-        model=chosen_model,  # Use model based on dynamic model selection
+        model=chosen_model,
         messages=[
             {"role": "system", "content": "You are an assistant that analyzes transcripts for radical content."},
             {"role": "user", "content": prompt}
         ],
         max_tokens=1000
     )
-    # print(response)
-    # st.write(response)
     result = response['choices'][0]['message']['content']
 
-    # Split the response into two parts based on the "[Separator]" line
+    # Split the response into two parts based on "[Separator]" (or fallback)
     try:
         if "[Separator]" in result:
             final_assessment, analysis = result.split("[Separator]", 1)
         elif "---" in result:
             final_assessment, analysis = result.split("---", 1)
         else:
-            st.error("Error analyzing video: separator not found in the output.")
+            st.error("Error analyzing: separator not found in the output.")
             final_assessment, analysis = "", ""
     except ValueError:
-        st.error("Error analyzing video: Unexpected response from model.")
+        st.error("Error analyzing: Unexpected response from model.")
         final_assessment, analysis = "", ""
     
-    # Global variables to store final assessment and analysis
-    print(f"Radical Content Analysis complete.")
     return final_assessment, analysis
 
-# Function to extract radical percentage and content percentage
+# Extract radical probabilities
 def extract_percentages(analysis_text):
     lines = analysis_text.splitlines()
-    
-    # Look for Radical Probability and Content lines
+
+    # Search for lines containing the relevant phrases
     rp_line = [line for line in lines if "Radical Probability" in line]
     rc_line = [line for line in lines if "Radical Content" in line]
-    
-    # Function to convert qualitative assessment to a percentage
+
+    # Helper
     def convert_to_percentage(text):
         text = text.lower()
         if "low" in text:
-            return 20  # Assign low percentages to qualitative labels
+            return 20
         elif "medium" in text:
-            return 50  # Assign medium percentages to qualitative labels
+            return 50
         elif "high" in text:
-            return 80  # Assign high percentages to qualitative labels
+            return 80
         else:
             try:
-                return int(text.replace("%", "").strip())  # Try extracting numerical percentage if available
+                return int(text.replace("%", "").strip())
             except ValueError:
-                return 0  # Default to 0 if no valid percentage is found
-    
-    # Extract and convert Radical Probability and Content
+                return 0
+
     rp_percentage = convert_to_percentage(rp_line[0].split(":")[1].strip()) if rp_line else 0
     rc_percentage = convert_to_percentage(rc_line[0].split(":")[1].strip()) if rc_line else 0
-    
     return rp_percentage, rc_percentage
 
-# Function to safely extract values from the analysis text
+# Extract relevant analysis parts (optional if you want them individually)
 def extract_analysis_parts(analysis_text):
     lines = analysis_text.splitlines()
     
-    # Helper function to safely extract section content
     def extract_section(section_name):
         try:
             return next(line for line in lines if section_name in line).split(":")[1].strip()
         except StopIteration:
-            return "Not available"  # Default if section not found
-    
-    # Extract sections with default handling for missing parts
+            return "Not available"
+
     lexical = extract_section("*Lexical Analysis*")
     emotion = extract_section("*Emotion and Sentiment in Speech*")
     speech_patterns = extract_section("*Speech Patterns and Intensity*")
@@ -466,12 +407,9 @@ def extract_analysis_parts(analysis_text):
     
     return lexical, emotion, speech_patterns, religious_rhetoric, commands
 
-# Function to append analysis to Excel
+# Append to Excel (optional usage if needed)
 def append_to_csv(transcript, analysis_text, rp_percentage, rc_percentage):
-    # File path for the Excel file
     file_path = "analysis_results.xlsx"
-
-    # Check if file exists, otherwise create it with headers
     if not os.path.exists(file_path):
         workbook = Workbook()
         sheet = workbook.active
@@ -488,17 +426,12 @@ def append_to_csv(transcript, analysis_text, rp_percentage, rc_percentage):
         ])
         workbook.save(file_path)
 
-    # Open the workbook and active sheet
     workbook = load_workbook(file_path)
     sheet = workbook.active
     
-    # Classification based on percentages
     classification = classify_content(rp_percentage, rc_percentage)
-
-    # Extract analysis parts safely
     lexical, emotion, speech_patterns, religious_rhetoric, commands = extract_analysis_parts(analysis_text)
     
-    # Append the new data
     row_data = [
         transcript,
         lexical,
@@ -512,82 +445,72 @@ def append_to_csv(transcript, analysis_text, rp_percentage, rc_percentage):
     ]
     sheet.append(row_data)
 
-    # Apply coloring based on classification
     fill_color = {
         "red": "FF0000",
         "yellow": "FFFF00",
         "green": "00FF00"
     }
-    
-    fill = PatternFill(start_color=fill_color[classification], end_color=fill_color[classification], fill_type="solid")
+    fill = PatternFill(
+        start_color=fill_color[classification],
+        end_color=fill_color[classification],
+        fill_type="solid"
+    )
     for cell in sheet[sheet.max_row]:
         cell.fill = fill
     
-    # Save the workbook
     workbook.save(file_path)
 
-# Create downloads directory if it doesn't exist
+# Create downloads dir if not exist
 directory = 'downloads/'
 if not os.path.exists(directory):
     os.makedirs(directory)
 
-# Set page configuration
+# Streamlit page config
 st.set_page_config(
     page_title="Cyber Crime Department - Goa Police",
     page_icon="https://upload.wikimedia.org/wikipedia/en/d/dd/Emblem_of_Goa_Police.png",
     layout="wide"
 )
 
-# Custom CSS to hide Streamlit menu and footer, set background to white, and stretch the navbar
+# Custom CSS
 custom_style = """
     <style>
-    /* Hide Streamlit elements */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Set background color to white */
     body {
         background-color: white !important;
-        #color: black !important;
     }
-
-    /* Style for Navbar */
     .navbar {
         overflow: hidden;
         background-color: #D8D4B8;
         position: fixed;
         top: 0;
-        left: 0;   /* Ensure it touches the left side */
-        right: 0;  /* Stretch to the right side */
+        left: 0;  
+        right: 0; 
         width: 100%;
         z-index: 1000;
     }
-
-    /* Navbar logo */
     .navbar img {
         float: left;
         display: inline-block;
         padding: 14px 10px;
-        height: 128px; /* Adjust height of the logo */
+        height: 128px;
     }
-
-    /* Goa Police Text Styling */
     .navbar .title {
         color: white;
         float: left;
         font-size: 64px;
         margin: 0;
         padding: 25px 10px;
-        font-family: 'Times New Roman', serif;  /* Changed to Times New Roman */
+        font-family: 'Times New Roman', serif;
         font-weight: bold;
         text-transform: uppercase;
         letter-spacing: 1.5px;
     }
-
-    /* Subtitle Styling for Radical and Religious Content Analyzer */
     .subtitle {
-        color: #000000; /* Black text color */
+        color: #000000;
         text-align: center;
         font-size: 48px;
         font-family: 'Cambria', serif;
@@ -606,7 +529,6 @@ custom_style = """
         text-align: justify;
         font-size: 18px;
     }
-    /* Ensure responsiveness */
     @media screen and (max-width: 600px) {
         .navbar .title {
             font-size: 18px;
@@ -619,7 +541,7 @@ custom_style = """
 """
 st.markdown(custom_style, unsafe_allow_html=True)
 
-# Navbar HTML for Goa Police
+# Navbar
 st.markdown("""
     <div class="navbar">
         <img src="https://upload.wikimedia.org/wikipedia/en/d/dd/Emblem_of_Goa_Police.png" alt="Goa Police Logo">
@@ -627,148 +549,180 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Page title for Radical and Religious Content Analyzer using div and subtitle class
+# Page title
 st.markdown('<div class="subtitle">Radical and Religious Content Analyzer</div>', unsafe_allow_html=True)
-
-# Page content spacing
 st.markdown("<br><br><br>", unsafe_allow_html=True)
 
-# Set up the Streamlit app
+# -- UI inputs --
 url = st.text_input(
     "Paste YouTube/X.com URL here",
     placeholder='https://www.youtube.com/ or https://x.com/'
 )
 
 st.markdown('<div style="text-align: center;"> <p>OR</p></div>', unsafe_allow_html=True)
-uploaded_file = st.file_uploader("Upload a local video file", type=["mp4", "mov", "avi"])
-button = st.button("Analyze")
 
+uploaded_file = st.file_uploader(
+    "Upload a local file (Video or Audio)",
+    type=["mp4", "mov", "avi", "m4a", "mp3", "wav"]  # add more audio types as needed
+)
 
-if button and (url or uploaded_file):
-    col1, col2 = st.columns([1, 1.5], gap="small")
-    
-    if url:
+st.markdown('<div style="text-align: center;"> <p>OR</p></div>', unsafe_allow_html=True)
+
+# Direct Transcript Text
+transcript_text = st.text_area("Enter or paste transcript text (optional). If provided, analysis will skip any audio/video steps.")
+
+analyze_button = st.button("Analyze")
+
+# -- Logic to handle user actions --
+if analyze_button:
+
+    # 1) If user provided transcript text directly, skip all audio/video steps
+    if transcript_text.strip():
+        transcripted_output = transcript_text.strip()
+        with st.spinner("Analyzing transcript text..."):
+            final_assess, analysis = get_analysis_with_api_key(transcripted_output)
+        
+        # Display results
+        final_assess_html = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
+        analysis_html = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
+        st.markdown(f"<div class='assess' style='white-space: pre-wrap;'>{final_assess_html}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='report' style='white-space: pre-wrap;'>{analysis_html}</div>", unsafe_allow_html=True)
+        
+        rp_percentage, rc_percentage = extract_percentages(analysis)
+        # append_to_csv(transcripted_output, analysis, rp_percentage, rc_percentage)  # optional
+        # st.dataframe(pd.read_excel('analysis_results.xlsx').tail())
+
+    # 2) Otherwise, check if a URL was provided
+    elif url:
         with st.spinner(f"Fetching video details... Estimated time: {st.session_state.t} mins"):
             video_title, thumbnail_url, duration = fetch_video_details(url)
-            
             if video_title:
-                # Convert duration from seconds to minutes:seconds format
+                # Convert duration to mm:ss
                 minutes, seconds = divmod(duration, 60)
                 video_length = f"{int(minutes)}:{int(seconds):02d}"
                 
-                # Display the fetched thumbnail and video details
+                col1, col2 = st.columns([1, 1.5], gap="small")
                 with col1:
                     st.image(thumbnail_url, caption="Video Thumbnail", use_container_width=True)
                 with col2:
                     st.markdown('<h2 style="font-weight:bold;">Video Details</h2>', unsafe_allow_html=True)
                     st.write(f"**Title:** {video_title}")
                     st.write(f"**Length:** {video_length}")
-                    
-                # Proceed with transcription and analysis
-                video_url = url
-                transcribe_youtube_video(video_url)  # Ensure this function is defined earlier
                 
-                # Get the analysis with an API key
-                transcript = transcripted_output  # Ensure this global variable is populated
+                # Transcribe
+                transcribe_youtube_video(url)
+                # Analyze
+                transcript = transcripted_output
                 final_assess, analysis = get_analysis_with_api_key(transcript)
                 
-                # Display the analysis in Streamlit
-                final_assess = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
-                analysis = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
-                with col2: 
-                    st.markdown(f"""
-                    <div class="assess" style="white-space: pre-wrap;">
-                    {final_assess}
-                    </div>
-                """, unsafe_allow_html=True)
+                final_assess_html = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
+                analysis_html = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
                 
-                st.markdown(f"""
-                    <div class="report" style="white-space: pre-wrap;">
-                    {analysis}
-                    </div>
-                """, unsafe_allow_html=True)   
-                # st.write(transcript)
-                # Extract radical probability and content percentage
+                with col2:
+                    st.markdown(f"<div class='assess' style='white-space: pre-wrap;'>{final_assess_html}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='report' style='white-space: pre-wrap;'>{analysis_html}</div>", unsafe_allow_html=True)
+                
                 rp_percentage, rc_percentage = extract_percentages(analysis)
-
-                # Append the results to the Excel
                 # append_to_csv(transcript, analysis, rp_percentage, rc_percentage)
+                # st.dataframe(pd.read_excel('analysis_results.xlsx').tail())
 
-                # # Optionally display the last 5 entries
-                # df = pd.read_excel('analysis_results.xlsx')
-                # st.write("Last 5 entries in the file:")
-                # st.dataframe(df.tail())
             else:
                 st.error("Unable to fetch video details. Please check the URL.")
-                
-    elif uploaded_file:
-        with st.spinner(f"Processing local video file... Estimated time: {st.session_state.t} mins"):
-            # Save uploaded file to a temporary path
-            temp_video_path = "local_video.mp4"
-            with open(temp_video_path, "wb") as f:
-                f.write(uploaded_file.read())
-            
-            # Determine video title, duration, and thumbnail using moviepy
-            video_title = uploaded_file.name
-            thumbnail_image = None
-            try:
-                clip = VideoFileClip(temp_video_path)
-                duration = int(clip.duration)  # duration in seconds
-                
-                # Extract a frame at 0 seconds for thumbnail
-                frame = clip.get_frame(0)
-                from PIL import Image
-                image = Image.fromarray(frame)
-                thumbnail_path = "local_thumbnail.png"
-                image.save(thumbnail_path)
-                thumbnail_image = thumbnail_path
-                
-                clip.close()
-            except Exception as e:
-                st.error(f"Error processing video file: {e}")
-                duration = 0
-            
-            # Convert duration from seconds to minutes:seconds format
-            minutes, seconds = divmod(duration, 60)
-            video_length = f"{int(minutes)}:{int(seconds):02d}"
-            
-            # Display video details similar to URL case
-            with col1:
-                if thumbnail_image:
-                    st.image(thumbnail_image, caption="Video Thumbnail", use_container_width=True)
-                else:
-                    st.image("https://via.placeholder.com/150", caption="No Thumbnail", use_container_width=True)
-            with col2:
-                st.markdown('<h2 style="font-weight:bold;">Video Details</h2>', unsafe_allow_html=True)
-                st.write(f"**Title:** {video_title}")
-                st.write(f"**Length:** {video_length}")
-            
-            # Transcribe using the new function
-            transcribe_local_video(temp_video_path)
-            
-            # Proceed with analysis using transcripted_output from local video transcription
-            final_assess, analysis = get_analysis_with_api_key(transcripted_output)
-            
-            # Display the analysis in Streamlit (reuse existing display logic)
-            final_assess = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
-            analysis = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
-            with col2: 
-                st.markdown(f"""
-                <div class="assess" style="white-space: pre-wrap;">
-                {final_assess}
-                </div>
-            """, unsafe_allow_html=True)
-            st.markdown(f"""
-                <div class="report" style="white-space: pre-wrap;">
-                {analysis}
-                </div>
-            """, unsafe_allow_html=True)
-            
-            # Clean up the temporary local video file and thumbnail
-            os.remove(temp_video_path)
-            if thumbnail_image and os.path.exists(thumbnail_image):
-                os.remove(thumbnail_image)
 
+    # 3) Otherwise, if a local file is provided
+    elif uploaded_file:
+        col1, col2 = st.columns([1, 1.5], gap="small")
+        file_extension = uploaded_file.name.split('.')[-1].lower()
+
+        # Distinguish between video vs audio
+        video_formats = ["mp4", "mov", "avi"]
+        audio_formats = ["m4a", "mp3", "wav"]
+
+        temp_path = f"uploaded_temp.{file_extension}"
+        with open(temp_path, "wb") as f:
+            f.write(uploaded_file.read())
+
+        if file_extension in video_formats:
+            # Handle local video
+            with st.spinner(f"Processing local video file... Estimated time: {st.session_state.t} mins"):
+                # Get some details
+                try:
+                    clip = VideoFileClip(temp_path)
+                    duration = int(clip.duration)
+                    frame = clip.get_frame(0)
+                    image_pil = Image.fromarray(frame)
+                    thumb_path = "local_thumbnail.png"
+                    image_pil.save(thumb_path)
+                    clip.close()
+                except Exception as e:
+                    st.error(f"Error processing video file: {e}")
+                    duration = 0
+                    thumb_path = None
+                
+                minutes, seconds = divmod(duration, 60)
+                video_length = f"{int(minutes)}:{int(seconds):02d}"
+                
+                with col1:
+                    if thumb_path and os.path.exists(thumb_path):
+                        st.image(thumb_path, caption="Video Thumbnail", use_container_width=True)
+                    else:
+                        st.image("https://via.placeholder.com/150", caption="No Thumbnail", use_container_width=True)
+                with col2:
+                    st.markdown('<h2 style="font-weight:bold;">Video Details</h2>', unsafe_allow_html=True)
+                    st.write(f"**Title:** {uploaded_file.name}")
+                    st.write(f"**Length:** {video_length}")
+
+                # Transcribe
+                transcribe_local_video(temp_path)
+                # Analyze
+                final_assess, analysis = get_analysis_with_api_key(transcripted_output)
+                
+                final_assess_html = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
+                analysis_html = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
+                
+                with col2:
+                    st.markdown(f"<div class='assess' style='white-space: pre-wrap;'>{final_assess_html}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='report' style='white-space: pre-wrap;'>{analysis_html}</div>", unsafe_allow_html=True)
+                
+                rp_percentage, rc_percentage = extract_percentages(analysis)
+                # append_to_csv(transcripted_output, analysis, rp_percentage, rc_percentage)
+                
+                os.remove(temp_path)
+                if thumb_path and os.path.exists(thumb_path):
+                    os.remove(thumb_path)
+
+        elif file_extension in audio_formats:
+            # Handle local audio: skip video extraction
+            with st.spinner(f"Processing local audio file... Estimated time: {st.session_state.t} mins"):
+                # There's no built-in "thumbnail" concept for audio
+                with col1:
+                    st.image("https://via.placeholder.com/150", caption="Audio File", use_container_width=True)
+                with col2:
+                    st.markdown('<h2 style="font-weight:bold;">Audio Details</h2>', unsafe_allow_html=True)
+                    st.write(f"**Title:** {uploaded_file.name}")
+
+                # Transcribe
+                transcribe_local_audio(temp_path)
+                # Analyze
+                final_assess, analysis = get_analysis_with_api_key(transcripted_output)
+                
+                final_assess_html = final_assess.replace('\n\n', '<br><br>').replace('\n', '<br>')
+                analysis_html = analysis.replace('\n\n', '<br><br>').replace('\n', '<br>')
+                
+                with col2:
+                    st.markdown(f"<div class='assess' style='white-space: pre-wrap;'>{final_assess_html}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='report' style='white-space: pre-wrap;'>{analysis_html}</div>", unsafe_allow_html=True)
+                
+                rp_percentage, rc_percentage = extract_percentages(analysis)
+                # append_to_csv(transcripted_output, analysis, rp_percentage, rc_percentage)
+
+                os.remove(temp_path)
+
+        else:
+            st.error("Unsupported file format. Please provide a valid video (mp4/mov/avi) or audio file (m4a/mp3/wav).")
+
+    else:
+        st.error("No input provided. Please enter a URL, upload a file, or paste transcript text.")
 
 else:
-    st.write("Enter a valid YouTube or X.com URL and click Analyze to see the video details.")
+    st.write("Enter a valid YouTube or X.com URL, or upload a valid file, or paste transcript text. Then click 'Analyze'.")
